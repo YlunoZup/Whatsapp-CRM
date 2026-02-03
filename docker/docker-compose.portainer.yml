@@ -22,8 +22,8 @@ services:
         cd /app &&
         HUSKY=0 pnpm install --filter @whatsapp-crm/api... &&
         cd /app/apps/api &&
-        node node_modules/prisma/build/index.js generate &&
-        node node_modules/prisma/build/index.js db push --accept-data-loss &&
+        pnpm dlx prisma@5.8.0 generate &&
+        pnpm dlx prisma@5.8.0 db push --accept-data-loss &&
         pnpm run build &&
         node dist/main.js
       "
