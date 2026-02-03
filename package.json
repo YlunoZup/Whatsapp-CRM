@@ -24,7 +24,7 @@
     "docker:down": "docker-compose -f docker/docker-compose.yml down",
     "docker:dev": "docker-compose -f docker/docker-compose.dev.yml up -d",
     "clean": "pnpm -r clean && rimraf node_modules",
-    "prepare": "husky install"
+    "prepare": "node -e \"try { require('husky').install() } catch (e) { if (e.code !== 'MODULE_NOT_FOUND') throw e }\""
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
