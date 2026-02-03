@@ -24,15 +24,15 @@ model Tenant {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  users             User[]
-  whatsappSessions  WhatsappSession[]
-  contacts          Contact[]
-  conversations     Conversation[]
-  tags              Tag[]
-  webhookEndpoints  WebhookEndpoint[]
-  apiKeys           ApiKey[]
-  messageTemplates  MessageTemplate[]
-  auditLogs         AuditLog[]
+  users            User[]
+  whatsappSessions WhatsappSession[]
+  contacts         Contact[]
+  conversations    Conversation[]
+  tags             Tag[]
+  webhookEndpoints WebhookEndpoint[]
+  apiKeys          ApiKey[]
+  messageTemplates MessageTemplate[]
+  auditLogs        AuditLog[]
 
   @@map("tenants")
 }
@@ -51,10 +51,10 @@ model User {
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  tenant              Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  assignedConversations Conversation[] @relation("AssignedUser")
-  reactions           MessageReaction[]
-  auditLogs           AuditLog[]
+  tenant                Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedConversations Conversation[]    @relation("AssignedUser")
+  reactions             MessageReaction[]
+  auditLogs             AuditLog[]
 
   @@index([tenantId])
   @@index([email])
@@ -80,11 +80,11 @@ model WhatsappSession {
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant           Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   conversations    Conversation[]
-  assignedContacts Contact[]      // Contacts that are locked to this session
-  logs             SessionLog[]   // Session activity logs
-  lidMappings      LidMapping[]   // LID to phone number mappings
+  assignedContacts Contact[] // Contacts that are locked to this session
+  logs             SessionLog[] // Session activity logs
+  lidMappings      LidMapping[] // LID to phone number mappings
   messageBuffers   MessageBuffer[] // Messages received during disconnection
 
   @@index([tenantId])
@@ -97,7 +97,7 @@ model SessionLog {
   id        String   @id @default(uuid())
   sessionId String   @map("session_id")
   level     String   @default("info") // info, warning, error, debug
-  event     String   // connected, disconnected, qr_generated, message_sent, message_received, error, etc.
+  event     String // connected, disconnected, qr_generated, message_sent, message_received, error, etc.
   message   String   @db.Text
   metadata  Json     @default("{}")
   createdAt DateTime @default(now()) @map("created_at")
@@ -117,7 +117,7 @@ model SessionLog {
 model LidMapping {
   id        String   @id @default(uuid())
   sessionId String   @map("session_id")
-  lid       String   // e.g., 12345@lid
+  lid       String // e.g., 12345@lid
   phoneJid  String   @map("phone_jid") // e.g., 1234567890@s.whatsapp.net
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -135,12 +135,12 @@ model LidMapping {
 // Message buffer for messages received during disconnection
 // Messages are queued here and flushed to proper tables on reconnection
 model MessageBuffer {
-  id        String   @id @default(uuid())
-  sessionId String   @map("session_id")
-  rawData   Json     // Store raw message object from Baileys
-  status    String   @default("pending") // pending, processing, completed, failed
-  error     String?  // Error message if processing failed
-  createdAt DateTime @default(now()) @map("created_at")
+  id          String    @id @default(uuid())
+  sessionId   String    @map("session_id")
+  rawData     Json // Store raw message object from Baileys
+  status      String    @default("pending") // pending, processing, completed, failed
+  error       String? // Error message if processing failed
+  createdAt   DateTime  @default(now()) @map("created_at")
   processedAt DateTime? @map("processed_at")
 
   // Relations
@@ -157,25 +157,25 @@ model MessageBuffer {
 // ============================================
 
 model Contact {
-  id                String   @id @default(uuid())
-  tenantId          String   @map("tenant_id")
-  whatsappId        String?  @map("whatsapp_id")
+  id                String    @id @default(uuid())
+  tenantId          String    @map("tenant_id")
+  whatsappId        String?   @map("whatsapp_id")
   phone             String
   name              String?
   email             String?
-  avatarUrl         String?  @map("avatar_url")
+  avatarUrl         String?   @map("avatar_url")
   // Lead Pipeline Status
-  status            String   @default("new") // new, contacted, interested, not_interested, closed_won, closed_lost
+  status            String    @default("new") // new, contacted, interested, not_interested, closed_won, closed_lost
   statusChangedAt   DateTime? @map("status_changed_at") // When status was last changed
-  assignedSessionId String?  @map("assigned_session_id") // Session that first contacted this contact - only this session can message them
+  assignedSessionId String?   @map("assigned_session_id") // Session that first contacted this contact - only this session can message them
   sessionLockedAt   DateTime? @map("session_locked_at") // When the session binding was established
   // Presence tracking
-  isOnline          Boolean  @default(false) @map("is_online")
+  isOnline          Boolean   @default(false) @map("is_online")
   lastSeenAt        DateTime? @map("last_seen_at")
-  lastPresence      String?  @map("last_presence") // available, composing, recording, paused, unavailable
-  metadata          Json     @default("{}")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  lastPresence      String?   @map("last_presence") // available, composing, recording, paused, unavailable
+  metadata          Json      @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   // Relations
   tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -232,7 +232,7 @@ model Conversation {
   contactId     String    @map("contact_id")
   status        String    @default("open")
   priority      String    @default("normal") // low, normal, high, urgent
-  label         String?   // custom label/category
+  label         String? // custom label/category
   assignedTo    String?   @map("assigned_to")
   lastMessageAt DateTime? @map("last_message_at")
   unreadCount   Int       @default(0) @map("unread_count")
@@ -259,27 +259,27 @@ model Conversation {
 }
 
 model Message {
-  id                String   @id @default(uuid())
-  tenantId          String   @map("tenant_id")
-  conversationId    String   @map("conversation_id")
-  whatsappMessageId String?  @map("whatsapp_message_id")
-  contentHash       String?  @map("content_hash") // SHA256 hash for additional deduplication
-  direction         String   // inbound, outbound
-  type              String   @default("text")
-  content           String?  @db.Text
-  mediaUrl          String?  @map("media_url")
-  status            String   @default("pending")
+  id                String    @id @default(uuid())
+  tenantId          String    @map("tenant_id")
+  conversationId    String    @map("conversation_id")
+  whatsappMessageId String?   @map("whatsapp_message_id")
+  contentHash       String?   @map("content_hash") // SHA256 hash for additional deduplication
+  direction         String // inbound, outbound
+  type              String    @default("text")
+  content           String?   @db.Text
+  mediaUrl          String?   @map("media_url")
+  status            String    @default("pending")
   // Message status timestamps
   deliveredAt       DateTime? @map("delivered_at")
   readAt            DateTime? @map("read_at")
-  isStarred         Boolean  @default(false) @map("is_starred")
+  isStarred         Boolean   @default(false) @map("is_starred")
   starredAt         DateTime? @map("starred_at")
-  metadata          Json     @default("{}")
-  sequenceNumber    BigInt?  @map("sequence_number")
-  createdAt         DateTime @default(now()) @map("created_at")
+  metadata          Json      @default("{}")
+  sequenceNumber    BigInt?   @map("sequence_number")
+  createdAt         DateTime  @default(now()) @map("created_at")
 
   // Relations
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   reactions    MessageReaction[]
 
   @@unique([tenantId, whatsappMessageId]) // Prevent duplicate whatsapp message IDs
@@ -402,22 +402,22 @@ model MessageTemplate {
 // ============================================
 
 model Broadcast {
-  id           String    @id @default(uuid())
-  tenantId     String    @map("tenant_id")
-  sessionId    String    @map("session_id")
-  name         String
-  content      String    @db.Text
-  type         String    @default("text")
-  mediaUrl     String?   @map("media_url")
-  status       String    @default("pending") // pending, processing, completed, failed, cancelled
-  totalCount   Int       @default(0) @map("total_count")
-  sentCount    Int       @default(0) @map("sent_count")
-  failedCount  Int       @default(0) @map("failed_count")
-  scheduledAt  DateTime? @map("scheduled_at")
-  startedAt    DateTime? @map("started_at")
-  completedAt  DateTime? @map("completed_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  sessionId   String    @map("session_id")
+  name        String
+  content     String    @db.Text
+  type        String    @default("text")
+  mediaUrl    String?   @map("media_url")
+  status      String    @default("pending") // pending, processing, completed, failed, cancelled
+  totalCount  Int       @default(0) @map("total_count")
+  sentCount   Int       @default(0) @map("sent_count")
+  failedCount Int       @default(0) @map("failed_count")
+  scheduledAt DateTime? @map("scheduled_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
   recipients BroadcastRecipient[]
@@ -467,13 +467,13 @@ model ContactNote {
 }
 
 model ContactActivity {
-  id         String   @id @default(uuid())
-  tenantId   String   @map("tenant_id")
-  contactId  String   @map("contact_id")
-  userId     String?  @map("user_id")
-  type       String   // created, updated, tagged, untagged, note_added, conversation_opened, conversation_closed, assigned, message_sent, message_received
-  metadata   Json     @default("{}")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  contactId String   @map("contact_id")
+  userId    String?  @map("user_id")
+  type      String // created, updated, tagged, untagged, note_added, conversation_opened, conversation_closed, assigned, message_sent, message_received
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([tenantId])
   @@index([contactId])
