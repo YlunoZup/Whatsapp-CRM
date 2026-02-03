@@ -80,3 +80,5 @@ postgres-data/
 # Claude Code
 .claude/
 *.local.md
+
+.vercel

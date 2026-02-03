@@ -1,0 +1,19 @@
+{
+  "name": "whatsapp-crm",
+  "repositoryURL": "https://github.com/YlunoZup/Whatsapp-CRM",
+  "repositoryReferenceName": "refs/heads/main",
+  "composeFile": "docker/docker-compose.portainer.yml",
+  "env": [
+    {"name": "DATABASE_URL", "value": "postgresql://neondb_owner:npg_hYb6Fe3NgdGA@ep-restless-bonus-a1e7zema-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"},
+    {"name": "REDIS_HOST", "value": "helping-lynx-11091.upstash.io"},
+    {"name": "REDIS_PORT", "value": "6379"},
+    {"name": "REDIS_PASSWORD", "value": "AStTAAIncDI2YTEwMWMzN2UwNzg0M2M3ODc1OTM5MWViZWQ0ZWUwYXAyMTEwOTE"},
+    {"name": "REDIS_TLS", "value": "true"},
+    {"name": "JWT_SECRET", "value": "whatsapp-crm-jwt-secret-production-key-2024"},
+    {"name": "JWT_EXPIRES_IN", "value": "1d"},
+    {"name": "JWT_REFRESH_SECRET", "value": "whatsapp-crm-refresh-secret-production-key-2024"},
+    {"name": "JWT_REFRESH_EXPIRES_IN", "value": "7d"},
+    {"name": "CORS_ORIGIN", "value": "https://whatsapp-crm-mu.vercel.app"},
+    {"name": "ENCRYPTION_KEY", "value": "whatsapp-crm-32char-secret-key!"}
+  ]
+}
