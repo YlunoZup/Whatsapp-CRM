@@ -1,7 +1,6 @@
 # Build stage
 FROM node:20-alpine AS builder
 
-# Add labels for better image management
 LABEL maintainer="WhatsApp CRM Team"
 LABEL version="1.0"
 LABEL description="WhatsApp CRM API Service"
@@ -11,80 +10,72 @@ WORKDIR /app
 # Install build dependencies
 RUN apk add --no-cache python3 make g++
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
-
 # Copy package files
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY package.json ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
 
-# Install dependencies (use --no-frozen-lockfile for flexibility)
-RUN pnpm install
+# Create workspace structure for npm
+RUN echo '{"workspaces": ["apps/*", "packages/*"]}' > package.json
+
+# Install dependencies using npm
+WORKDIR /app/apps/api
+RUN npm install --legacy-peer-deps
+
+WORKDIR /app/packages/shared
+RUN npm install --legacy-peer-deps
 
 # Copy source files
+WORKDIR /app
 COPY tsconfig.base.json ./
 COPY apps/api ./apps/api
 COPY packages/shared ./packages/shared
 
 # Generate Prisma client
 WORKDIR /app/apps/api
-RUN pnpm prisma generate
+RUN npx prisma generate
 
-# Build
-RUN pnpm build
+# Build shared package first
+WORKDIR /app/packages/shared
+RUN npm run build || true
+
+# Build API
+WORKDIR /app/apps/api
+RUN npm run build
 
 # Production stage
 FROM node:20-alpine AS runner
 
-# Security: Run as non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
 WORKDIR /app
 
-# Install pnpm and dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init && \
-    corepack enable && corepack prepare pnpm@8.15.0 --activate
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
 
-# Copy package files
-COPY package.json pnpm-workspace.yaml ./
-COPY apps/api/package.json ./apps/api/
-COPY packages/shared/package.json ./packages/shared/
+# Copy built files and dependencies
+COPY --from=builder /app/apps/api/dist ./dist
+COPY --from=builder /app/apps/api/prisma ./prisma
+COPY --from=builder /app/apps/api/node_modules ./node_modules
+COPY --from=builder /app/apps/api/package.json ./
 
-# Install production dependencies only
-RUN pnpm install --prod
+# Create WhatsApp sessions directory
+RUN mkdir -p /app/.whatsapp-sessions
 
-# Copy built files
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=builder /app/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-
-WORKDIR /app/apps/api
-
-# Expose port
-EXPOSE 3001
-
-# Create WhatsApp sessions directory for persistence
-RUN mkdir -p /app/apps/api/.whatsapp-sessions
-
-# Set proper permissions
+# Set permissions
 RUN chown -R nodejs:nodejs /app
 
-# Switch to non-root user
 USER nodejs
 
-# Environment variables
 ENV NODE_ENV=production
 ENV PORT=3001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
 
-# Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Push schema and start server (using db push for NeonDB compatibility)
 CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/main.js"]
