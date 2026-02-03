@@ -68,8 +68,13 @@ export class ContactSyncService {
           select: { metadata: true },
         });
 
+        // Safely merge metadata (handle both object and non-object cases)
+        const existingMetadata = contact?.metadata && typeof contact.metadata === 'object' && !Array.isArray(contact.metadata)
+          ? (contact.metadata as Record<string, unknown>)
+          : {};
+
         updates.metadata = {
-          ...(contact?.metadata ?? {}),
+          ...existingMetadata,
           ...metadataUpdates,
         };
       }
