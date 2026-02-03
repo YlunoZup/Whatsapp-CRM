@@ -862,15 +862,53 @@ export class MessageProcessor implements OnModuleInit {
         }
       } else {
         this.logger.error(
-          `Failed to send message - session: ${sessionId}, error: ${result.error}`,
+          `Failed to send message - session: ${sessionId}, to: ${to}, attempt: ${attemptNumber}, error: ${result.error}`,
         );
 
-        // Update scheduled message status on final failure
-        if (attemptNumber >= 3 && metadata?.scheduledMessageId) {
-          await this.prisma.scheduledMessage.update({
-            where: { id: metadata.scheduledMessageId as string },
-            data: { status: 'failed' },
-          });
+        // Circuit breaker: After 3 failed attempts, mark message as failed and log the error
+        if (attemptNumber >= 3) {
+          this.logger.warn(
+            `Message delivery circuit breaker triggered after ${attemptNumber} attempts - session: ${sessionId}, to: ${to}`,
+          );
+
+          // Update the message status to failed
+          if (metadata?.messageId) {
+            try {
+              await this.prisma.message.update({
+                where: { id: metadata.messageId as string },
+                data: {
+                  status: 'failed',
+                  metadata: {
+                    error: result.error || 'Failed after maximum retry attempts',
+                    failedAt: new Date().toISOString(),
+                    attemptCount: attemptNumber,
+                  },
+                },
+              });
+              this.logger.log(`Marked message ${metadata.messageId} as failed`);
+            } catch (err) {
+              this.logger.error(`Failed to update message status: ${err}`);
+            }
+          }
+
+          // Update scheduled message status on final failure
+          if (metadata?.scheduledMessageId) {
+            try {
+              await this.prisma.scheduledMessage.update({
+                where: { id: metadata.scheduledMessageId as string },
+                data: {
+                  status: 'failed',
+                  error: result.error || 'Failed after maximum retry attempts',
+                },
+              });
+              this.logger.log(`Marked scheduled message ${metadata.scheduledMessageId} as failed`);
+            } catch (err) {
+              this.logger.error(`Failed to update scheduled message status: ${err}`);
+            }
+          }
+
+          // Note: Don't mark contact as unreachable here - let user decide if contact is valid
+          // Some failures are temporary (session disconnected) not permanent (blocked number)
         }
 
         throw new Error(result.error || 'Failed to send message');
