@@ -974,10 +974,32 @@ export class MessageProcessor implements OnModuleInit {
           whatsappMessageId: result?.key?.id,
           remoteJid: result?.key?.remoteJid,
         };
+      } else if (mediaUrl && (type === 'image' || type === 'video' || type === 'audio' || type === 'document')) {
+        // Send media message with caption
+        const result = await this.whatsappService.sendMedia(
+          sessionId,
+          normalizedTo,
+          type,
+          mediaUrl,
+          message, // Use message as caption if provided
+        );
+        this.logger.log(`Baileys send result: ${JSON.stringify(result?.key)}`);
+
+        return {
+          success: true,
+          whatsappMessageId: result?.key?.id,
+          remoteJid: result?.key?.remoteJid,
+        };
       } else {
-        // TODO: Implement media message sending
-        this.logger.warn(`Media message type ${type} not yet implemented, sending as text`);
-        const result = await this.whatsappService.sendMessage(sessionId, normalizedTo, message || `[${type}]`);
+        // Fallback: if no mediaUrl for media type, send as text
+        this.logger.warn(
+          `Media message type ${type} missing mediaUrl, sending as text instead`,
+        );
+        const result = await this.whatsappService.sendMessage(
+          sessionId,
+          normalizedTo,
+          message || `[${type}]`,
+        );
 
         return {
           success: true,

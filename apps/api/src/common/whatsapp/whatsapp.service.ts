@@ -1055,6 +1055,99 @@ export class WhatsAppService implements OnModuleDestroy {
   }
 
   /**
+   * Send a media message (image, video, audio, document) to a WhatsApp contact
+   * @param sessionId - Session ID
+   * @param to - Contact phone number or JID
+   * @param mediaType - Type of media (image, video, audio, document)
+   * @param mediaUrl - URL of the media file
+   * @param caption - Optional caption for the media
+   * @returns Message key from Baileys
+   */
+  async sendMedia(
+    sessionId: string,
+    to: string,
+    mediaType: 'image' | 'video' | 'audio' | 'document',
+    mediaUrl: string,
+    caption?: string,
+  ): Promise<any> {
+    const connection = this.connections.get(sessionId);
+    if (!connection?.socket || connection.status !== 'connected') {
+      throw new Error('Session not connected');
+    }
+
+    if (!mediaUrl) {
+      throw new Error('Media URL is required');
+    }
+
+    const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+
+    // Check rate limits
+    const waitTime = this.checkRateLimit(sessionId);
+    if (waitTime > 0) {
+      this.logger.log(`Rate limit: waiting ${waitTime}ms before sending media`);
+      await delay(waitTime);
+    }
+
+    try {
+      // For now, fetch media as buffer from URL
+      // In production, consider: caching, streaming, or sending URL directly if supported
+      const https = require('https');
+      const http = require('http');
+      const { URL } = require('url');
+
+      const url = new URL(mediaUrl);
+      const protocol = url.protocol === 'https:' ? https : http;
+
+      const mediaBuffer = await new Promise<Buffer>((resolve, reject) => {
+        protocol
+          .get(mediaUrl, (response) => {
+            const chunks: Buffer[] = [];
+            response.on('data', (chunk) => chunks.push(chunk));
+            response.on('end', () => resolve(Buffer.concat(chunks)));
+            response.on('error', reject);
+          })
+          .on('error', reject);
+      });
+
+      // Record for rate limiting
+      this.recordMessageSent(sessionId);
+
+      // Send media based on type
+      const messageContent: any = {};
+
+      switch (mediaType) {
+        case 'image':
+          messageContent.image = mediaBuffer;
+          if (caption) messageContent.caption = caption;
+          break;
+        case 'video':
+          messageContent.video = mediaBuffer;
+          if (caption) messageContent.caption = caption;
+          break;
+        case 'audio':
+          messageContent.audio = mediaBuffer;
+          messageContent.mimetype = 'audio/mp4'; // Baileys expects audio as mp4
+          break;
+        case 'document':
+          messageContent.document = mediaBuffer;
+          // Extract filename from URL for document
+          const filename = mediaUrl.split('/').pop() || 'document';
+          messageContent.fileName = filename;
+          break;
+      }
+
+      this.logger.log(
+        `Sending ${mediaType} message to ${jid}, size: ${mediaBuffer.length} bytes`,
+      );
+
+      return connection.socket.sendMessage(jid, messageContent);
+    } catch (error) {
+      this.logger.error(`Error sending media: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
    * Send a reaction to a message on WhatsApp
    * @param sessionId - The session to use
    * @param remoteJid - The chat JID (recipient)
