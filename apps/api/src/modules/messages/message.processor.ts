@@ -6,6 +6,7 @@ import { QueueService, MessageJobData } from '../../common/queue/queue.service';
 import { SocketService } from '../../common/socket/socket.service';
 import { WhatsAppService, IncomingMessage, MessageStatusUpdate, IncomingReaction, PresenceUpdate } from '../../common/whatsapp/whatsapp.service';
 import { ContentHashService } from '../../common/whatsapp/content-hash.service';
+import { ContactSyncService } from '../contacts/contact-sync.service';
 
 interface SendResult {
   success: boolean;
@@ -25,6 +26,7 @@ export class MessageProcessor implements OnModuleInit {
     private readonly socketService: SocketService,
     private readonly whatsappService: WhatsAppService,
     private readonly contentHash: ContentHashService,
+    private readonly contactSync: ContactSyncService,
   ) {}
 
   onModuleInit() {
@@ -111,20 +113,11 @@ export class MessageProcessor implements OnModuleInit {
       // Determine online status
       const isOnline = presence.presence === 'available' || presence.presence === 'composing' || presence.presence === 'recording';
 
-      // Update contact presence
-      const updateData: any = {
+      // Update contact presence using ContactSyncService
+      await this.contactSync.updateContactPresence(contact.id, {
         isOnline,
-        lastPresence: presence.presence,
-      };
-
-      // If going offline or we have lastSeen, update lastSeenAt
-      if (!isOnline || presence.lastSeen) {
-        updateData.lastSeenAt = presence.lastSeen ? new Date(presence.lastSeen * 1000) : new Date();
-      }
-
-      await this.prisma.contact.update({
-        where: { id: contact.id },
-        data: updateData,
+        lastPresence: presence.presence as any,
+        lastSeenAt: presence.lastSeen ? new Date(presence.lastSeen * 1000) : new Date(),
       });
 
       this.logger.debug(`Updated presence for contact ${contact.id}: ${presence.presence}, online: ${isOnline}`);
@@ -134,7 +127,7 @@ export class MessageProcessor implements OnModuleInit {
         contactId: contact.id,
         isOnline,
         presence: presence.presence,
-        lastSeenAt: updateData.lastSeenAt,
+        lastSeenAt: presence.lastSeen ? new Date(presence.lastSeen * 1000) : new Date(),
       });
     } catch (error) {
       this.logger.error(`Error processing presence update: ${error instanceof Error ? error.message : error}`);
@@ -599,8 +592,8 @@ export class MessageProcessor implements OnModuleInit {
         });
         this.logger.log(`Created new contact: ${contact.id} (name: ${contact.name}, phone: ${contactPhone}, whatsappId: ${msg.remoteJid}, needsReview: ${needsReview})`);
       } else {
-        // Update existing contact with whatsappId and name if needed
-        const updates: Record<string, string> = {};
+        // Update existing contact with metadata from message
+        const updates: Record<string, any> = {};
 
         // Update whatsappId if:
         // 1. Contact has no whatsappId, OR
@@ -613,9 +606,13 @@ export class MessageProcessor implements OnModuleInit {
           this.logger.log(`Updating contact whatsappId from ${contact.whatsappId} to ${msg.remoteJid}`);
         }
 
+        // Update name from pushName if current name is default/missing
         if (msg.pushName && (contact.name === contact.phone || !contact.name || contact.name === 'Unknown')) {
           updates.name = msg.pushName;
+          this.logger.log(`Updated contact name to: ${msg.pushName}`);
         }
+
+        // Perform update if any changes
         if (Object.keys(updates).length > 0) {
           contact = await this.prisma.contact.update({
             where: { id: contact.id },
@@ -623,6 +620,13 @@ export class MessageProcessor implements OnModuleInit {
           });
           this.logger.log(`Updated contact ${contact.id} with: ${JSON.stringify(updates)}`);
         }
+
+        // Sync additional contact metadata from message
+        // This captures name, presence, and other info from WhatsApp
+        await this.contactSync.syncContactMetadata(session.tenantId, contact.id, {
+          pushName: msg.pushName,
+          whatsappId: msg.remoteJid,
+        });
 
         // Store LID mapping if this is a @lid message and contact has a phone number
         // This allows future messages from this LID to be matched to this contact
