@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { QueueService, MessageJobData } from '../../common/queue/queue.service';
 import { SocketService } from '../../common/socket/socket.service';
 import { WhatsAppService, IncomingMessage, MessageStatusUpdate, IncomingReaction, PresenceUpdate } from '../../common/whatsapp/whatsapp.service';
+import { ContentHashService } from '../../common/whatsapp/content-hash.service';
 
 interface SendResult {
   success: boolean;
@@ -23,6 +24,7 @@ export class MessageProcessor implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly socketService: SocketService,
     private readonly whatsappService: WhatsAppService,
+    private readonly contentHash: ContentHashService,
   ) {}
 
   onModuleInit() {
@@ -665,12 +667,41 @@ export class MessageProcessor implements OnModuleInit {
         return;
       }
 
+      // Generate content hash for additional deduplication safety
+      const contentHash = this.contentHash.generateHash(
+        msg.content || '',
+        msg.type,
+        msg.remoteJid,
+        msg.timestamp,
+      );
+
+      // Additional deduplication: check for identical content from same sender within 5-second window
+      const existingContentHash = await this.prisma.message.findFirst({
+        where: {
+          tenantId: session.tenantId,
+          conversationId: conversation.id,
+          contentHash,
+          createdAt: {
+            gte: new Date((msg.timestamp - 5) * 1000),
+            lte: new Date((msg.timestamp + 5) * 1000),
+          },
+        },
+      });
+
+      if (existingContentHash) {
+        this.logger.debug(
+          `Message deduplicated by content hash: ${contentHash} (timestamp window: ${msg.timestamp - 5} - ${msg.timestamp + 5})`,
+        );
+        return;
+      }
+
       // Create the message
       const message = await this.prisma.message.create({
         data: {
           tenantId: session.tenantId,
           conversationId: conversation.id,
           whatsappMessageId: msg.messageId,
+          contentHash,
           direction: 'inbound',
           type: msg.type,
           content: msg.content || '',
