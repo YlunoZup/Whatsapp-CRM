@@ -1,4 +1,7 @@
-import { Prisma } from '@prisma/client';
+type StringFilter = {
+  contains?: string;
+  mode?: 'default' | 'insensitive';
+};
 
 export class QueryUtil {
   /**
@@ -7,7 +10,7 @@ export class QueryUtil {
   static buildSearchCondition(
     search: string | undefined,
     fields: string[],
-  ): Prisma.StringFilter | undefined {
+  ): StringFilter | undefined {
     if (!search || search.trim() === '') {
       return undefined;
     }
@@ -16,7 +19,7 @@ export class QueryUtil {
 
     return {
       contains: searchTerm,
-      mode: 'insensitive' as Prisma.QueryMode,
+      mode: 'insensitive',
     };
   }
 
@@ -36,7 +39,7 @@ export class QueryUtil {
     return fields.map((field) => ({
       [field]: {
         contains: searchTerm,
-        mode: 'insensitive' as Prisma.QueryMode,
+        mode: 'insensitive' as const,
       },
     }));
   }

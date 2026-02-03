@@ -7,7 +7,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { Prisma } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClientKnownRequestError, PrismaClientValidationError } from '@prisma/client/runtime/library';
 import {
   BusinessException,
   ErrorResponse,
@@ -78,11 +79,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     // Handle Prisma errors
-    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+    if (exception instanceof PrismaClientKnownRequestError) {
       return this.handlePrismaError(exception, timestamp, path);
     }
 
-    if (exception instanceof Prisma.PrismaClientValidationError) {
+    if (exception instanceof PrismaClientValidationError) {
       return {
         statusCode: HttpStatus.BAD_REQUEST,
         message: 'Invalid data provided',
@@ -111,7 +112,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 
   private handlePrismaError(
-    exception: Prisma.PrismaClientKnownRequestError,
+    exception: PrismaClientKnownRequestError,
     timestamp: string,
     path: string,
   ): ErrorResponse {

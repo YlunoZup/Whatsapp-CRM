@@ -904,7 +904,7 @@ export class ContactsService {
       select: { id: true },
     });
 
-    const validContactIds = new Set(validContacts.map(c => c.id));
+    const validContactIds = new Set<string>(validContacts.map(c => c.id));
     const invalidContactIds = contactIds.filter(id => !validContactIds.has(id));
 
     // Mark invalid contacts as failed
@@ -983,7 +983,7 @@ export class ContactsService {
       select: { id: true },
     });
 
-    const validContactIds = new Set(validContacts.map(c => c.id));
+    const validContactIds = new Set<string>(validContacts.map(c => c.id));
     const invalidContactIds = contactIds.filter(id => !validContactIds.has(id));
 
     // Mark invalid contacts as failed
@@ -1068,7 +1068,7 @@ export class ContactsService {
       select: { id: true },
     });
 
-    const validContactIds = new Set(validContacts.map(c => c.id));
+    const validContactIds = new Set<string>(validContacts.map(c => c.id));
     const invalidContactIds = contactIds.filter(id => !validContactIds.has(id));
 
     // Mark invalid contacts as failed
@@ -1569,7 +1569,7 @@ export class ContactsService {
       select: { id: true },
     });
 
-    const validContactIds = new Set(validContacts.map(c => c.id));
+    const validContactIds = new Set<string>(validContacts.map(c => c.id));
     const invalidContactIds = contactIds.filter(id => !validContactIds.has(id));
 
     // Mark invalid contacts as failed
