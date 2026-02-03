@@ -1,7 +1,7 @@
 version: '3.8'
 
 # WhatsApp CRM API - Portainer Deployment
-# Uses Node.js base image with npm install at runtime
+# Uses Node.js base image with pnpm install at runtime
 
 services:
   api:
@@ -12,17 +12,19 @@ services:
     command: >
       sh -c "
         apk add --no-cache python3 make g++ git wget &&
+        npm install -g pnpm &&
         if [ ! -f /app/apps/api/package.json ]; then
           rm -rf /app/* /app/.* 2>/dev/null || true &&
           git clone --depth 1 https://github.com/YlunoZup/Whatsapp-CRM.git /tmp/repo &&
           cp -r /tmp/repo/* /app/ &&
           rm -rf /tmp/repo
         fi &&
+        cd /app &&
+        pnpm install --filter @whatsapp-crm/api... &&
         cd /app/apps/api &&
-        npm install --legacy-peer-deps &&
-        npx prisma generate &&
-        npx prisma db push --accept-data-loss &&
-        npm run build &&
+        pnpm prisma generate &&
+        pnpm prisma db push --accept-data-loss &&
+        pnpm run build &&
         node dist/main.js
       "
     environment:
