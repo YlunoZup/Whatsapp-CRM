@@ -19,6 +19,10 @@ interface SendResult {
 export class MessageProcessor implements OnModuleInit {
   private readonly logger = new Logger(MessageProcessor.name);
 
+  // In-memory lock to prevent race conditions in message processing
+  // Maps: `${sessionId}:${messageId}` -> Promise that resolves when processing completes
+  private readonly processingLocks = new Map<string, Promise<void>>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly queueService: QueueService,
@@ -35,6 +39,34 @@ export class MessageProcessor implements OnModuleInit {
     this.registerMessageStatusHandler();
     this.registerIncomingReactionHandler();
     this.registerPresenceUpdateHandler();
+  }
+
+  /**
+   * Acquire a lock for processing a specific message to prevent race conditions.
+   * If message is already being processed, waits for it to complete.
+   * @returns Release function that must be called when processing completes
+   */
+  private async acquireMessageLock(sessionId: string, messageId: string): Promise<() => void> {
+    const lockKey = `${sessionId}:${messageId}`;
+
+    // Wait for any existing lock to complete
+    while (this.processingLocks.has(lockKey)) {
+      await this.processingLocks.get(lockKey);
+    }
+
+    // Create new lock promise
+    let resolveLock: () => void;
+    const lockPromise = new Promise<void>((resolve) => {
+      resolveLock = resolve;
+    });
+
+    this.processingLocks.set(lockKey, lockPromise);
+
+    // Return release function
+    return () => {
+      this.processingLocks.delete(lockKey);
+      resolveLock();
+    };
   }
 
   private registerWorker() {
@@ -341,6 +373,9 @@ export class MessageProcessor implements OnModuleInit {
   }
 
   private async processIncomingMessage(msg: IncomingMessage) {
+    // Acquire lock to prevent race conditions from simultaneous processing
+    const releaseLock = await this.acquireMessageLock(msg.sessionId, msg.messageId);
+
     try {
       // Skip messages sent by us (fromMe = true)
       if (msg.fromMe) {
@@ -781,6 +816,9 @@ export class MessageProcessor implements OnModuleInit {
         `Error processing incoming message (outer): ${error instanceof Error ? error.message : error}`,
         error instanceof Error ? error.stack : undefined,
       );
+    } finally {
+      // Always release the lock when processing completes (success or error)
+      releaseLock();
     }
   }
 
