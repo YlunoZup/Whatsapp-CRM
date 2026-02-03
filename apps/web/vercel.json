@@ -2,7 +2,6 @@
   "framework": "vite",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "http://148.135.12.219:3001/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
