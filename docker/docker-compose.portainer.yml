@@ -9,7 +9,22 @@ services:
     container_name: whatsapp-crm-api
     restart: unless-stopped
     working_dir: /app
-    command: sh -c "apk add --no-cache python3 make g++ git && git clone --depth 1 https://github.com/YlunoZup/Whatsapp-CRM.git . && cd apps/api && npm install --legacy-peer-deps && npx prisma generate && npx prisma db push --accept-data-loss && npm run build && node dist/main.js"
+    command: >
+      sh -c "
+        apk add --no-cache python3 make g++ git wget &&
+        if [ ! -f /app/apps/api/package.json ]; then
+          rm -rf /app/* /app/.* 2>/dev/null || true &&
+          git clone --depth 1 https://github.com/YlunoZup/Whatsapp-CRM.git /tmp/repo &&
+          cp -r /tmp/repo/* /app/ &&
+          rm -rf /tmp/repo
+        fi &&
+        cd /app/apps/api &&
+        npm install --legacy-peer-deps &&
+        npx prisma generate &&
+        npx prisma db push --accept-data-loss &&
+        npm run build &&
+        node dist/main.js
+      "
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -26,7 +41,7 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
     volumes:
       - whatsapp_sessions:/app/apps/api/.whatsapp-sessions
-      - api_node_modules:/app/apps/api/node_modules
+      - api_code:/app
     ports:
       - "3001:3001"
     healthcheck:
@@ -45,5 +60,5 @@ networks:
 volumes:
   whatsapp_sessions:
     driver: local
-  api_node_modules:
+  api_code:
     driver: local
