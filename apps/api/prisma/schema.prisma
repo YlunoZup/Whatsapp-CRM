@@ -84,6 +84,8 @@ model WhatsappSession {
   conversations    Conversation[]
   assignedContacts Contact[]      // Contacts that are locked to this session
   logs             SessionLog[]   // Session activity logs
+  lidMappings      LidMapping[]   // LID to phone number mappings
+  messageBuffers   MessageBuffer[] // Messages received during disconnection
 
   @@index([tenantId])
   @@index([status])
@@ -108,6 +110,46 @@ model SessionLog {
   @@index([event])
   @@index([createdAt])
   @@map("session_logs")
+}
+
+// LID (Local ID) to Phone Number mappings for WhatsApp
+// WhatsApp uses temporary @lid format internally, this maps to actual phone numbers
+model LidMapping {
+  id        String   @id @default(uuid())
+  sessionId String   @map("session_id")
+  lid       String   // e.g., 12345@lid
+  phoneJid  String   @map("phone_jid") // e.g., 1234567890@s.whatsapp.net
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  session WhatsappSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, lid])
+  @@index([sessionId])
+  @@index([lid])
+  @@index([createdAt])
+  @@map("lid_mappings")
+}
+
+// Message buffer for messages received during disconnection
+// Messages are queued here and flushed to proper tables on reconnection
+model MessageBuffer {
+  id        String   @id @default(uuid())
+  sessionId String   @map("session_id")
+  rawData   Json     // Store raw message object from Baileys
+  status    String   @default("pending") // pending, processing, completed, failed
+  error     String?  // Error message if processing failed
+  createdAt DateTime @default(now()) @map("created_at")
+  processedAt DateTime? @map("processed_at")
+
+  // Relations
+  session WhatsappSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("message_buffers")
 }
 
 // ============================================
@@ -221,6 +263,7 @@ model Message {
   tenantId          String   @map("tenant_id")
   conversationId    String   @map("conversation_id")
   whatsappMessageId String?  @map("whatsapp_message_id")
+  contentHash       String?  @map("content_hash") // SHA256 hash for additional deduplication
   direction         String   // inbound, outbound
   type              String   @default("text")
   content           String?  @db.Text
@@ -239,9 +282,11 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   reactions    MessageReaction[]
 
+  @@unique([tenantId, whatsappMessageId]) // Prevent duplicate whatsapp message IDs
   @@index([tenantId])
   @@index([conversationId])
   @@index([whatsappMessageId])
+  @@index([contentHash])
   @@index([createdAt])
   @@index([status])
   @@map("messages")

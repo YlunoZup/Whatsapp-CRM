@@ -13,6 +13,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as QRCode from 'qrcode';
 import pino from 'pino';
+import { MessageBufferService } from './message-buffer.service';
+import { LidMappingService } from './lid-mapping.service';
+import { ContentHashService } from './content-hash.service';
 
 export interface WhatsAppConnection {
   socket: WASocket | null;
@@ -96,7 +99,11 @@ export class WhatsAppService implements OnModuleDestroy {
   private readonly MAX_RECONNECT_ATTEMPTS = 10; // Max reconnect tries before giving up
   private readonly RECONNECT_BASE_DELAY = 5000; // 5 second base delay for reconnect
 
-  constructor() {
+  constructor(
+    private messageBuffer: MessageBufferService,
+    private lidMapping: LidMappingService,
+    private contentHash: ContentHashService,
+  ) {
     this.authDir = path.join(process.cwd(), '.whatsapp-sessions');
     if (!fs.existsSync(this.authDir)) {
       fs.mkdirSync(this.authDir, { recursive: true });
@@ -335,8 +342,12 @@ export class WhatsAppService implements OnModuleDestroy {
         generateHighQualityLinkPreview: true,
         // Receive notifications for messages like WhatsApp Web
         getMessage: async (key) => {
-          // Return empty message if not found - required for retries
-          return { conversation: '' };
+          // CRITICAL FIX: Return undefined when message not found
+          // Returning { conversation: '' } caused blank messages to appear
+          // during session initialization (WhatsApp sends ~6 retry/poll requests)
+          // Returning undefined tells Baileys there's no cached message,
+          // so it won't create fake empty messages
+          return undefined;
         },
       });
 
@@ -409,6 +420,14 @@ export class WhatsAppService implements OnModuleDestroy {
           connection.qrCode = null;
           this.notifyConnectionChange(sessionId, 'connected', undefined, phoneNumber);
 
+          // Load LID mappings from database into cache for this session
+          try {
+            await this.lidMapping.loadSessionCache(sessionId);
+            this.logger.log(`Loaded LID mappings for session ${sessionId}`);
+          } catch (err) {
+            this.logger.warn(`Could not load LID mappings: ${err}`);
+          }
+
           // Set presence to "available" like WhatsApp Web does on connect
           try {
             await socket.sendPresenceUpdate('available');
@@ -421,19 +440,33 @@ export class WhatsAppService implements OnModuleDestroy {
         }
       });
 
-      // Handle incoming messages
+      // Handle incoming messages (both real-time and history sync)
       socket.ev.on('messages.upsert', async (m) => {
         const { messages, type } = m;
 
-        // Only process new messages (not history sync)
-        if (type !== 'notify') {
+        // Process both 'notify' (real-time) and 'append' (history sync) messages
+        // 'notify' = new real-time messages
+        // 'append' = historical messages from sync (e.g., messages received while disconnected)
+        const isHistorySync = type === 'append';
+
+        if (type !== 'notify' && type !== 'append') {
+          this.logger.debug(`Skipping messages.upsert with type: ${type}`);
           return;
+        }
+
+        if (isHistorySync) {
+          this.logger.log(`Processing ${messages.length} historical messages (type: append) for session ${sessionId}`);
         }
 
         for (const msg of messages) {
           try {
             // Skip status broadcasts
             if (msg.key.remoteJid === 'status@broadcast') {
+              continue;
+            }
+
+            // Skip protocol messages (no actual content)
+            if (!msg.message) {
               continue;
             }
 
@@ -475,26 +508,42 @@ export class WhatsAppService implements OnModuleDestroy {
             let messageType: 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' = 'text';
             let content = '';
             let mediaUrl: string | undefined;
+            let hasValidContent = false;
 
             if (msg.message?.conversation) {
               messageType = 'text';
               content = msg.message.conversation;
+              hasValidContent = content.trim().length > 0;
             } else if (msg.message?.extendedTextMessage?.text) {
               messageType = 'text';
               content = msg.message.extendedTextMessage.text;
+              hasValidContent = content.trim().length > 0;
             } else if (msg.message?.imageMessage) {
               messageType = 'image';
               content = msg.message.imageMessage.caption || '';
+              hasValidContent = true; // Images are valid even without caption
             } else if (msg.message?.videoMessage) {
               messageType = 'video';
               content = msg.message.videoMessage.caption || '';
+              hasValidContent = true; // Videos are valid even without caption
             } else if (msg.message?.audioMessage) {
               messageType = 'audio';
+              hasValidContent = true; // Audio messages are always valid
             } else if (msg.message?.documentMessage) {
               messageType = 'document';
               content = msg.message.documentMessage.fileName || 'Document';
+              hasValidContent = true; // Documents are valid
             } else if (msg.message?.stickerMessage) {
               messageType = 'sticker';
+              hasValidContent = true; // Stickers are valid
+            }
+
+            // CRITICAL FIX: Skip messages without valid content
+            // This prevents blank/empty messages from being processed
+            // (e.g., from poll retries, protocol messages, or corrupted sync data)
+            if (!hasValidContent) {
+              this.logger.debug(`Skipping message ${messageId} - no valid content (type: ${messageType}, isHistorySync: ${isHistorySync})`);
+              continue;
             }
 
             // Resolve phone number from LID using multiple sources
@@ -517,7 +566,7 @@ export class WhatsAppService implements OnModuleDestroy {
               }
             }
 
-            this.logger.log(`Incoming message - Session: ${sessionId}, From: ${remoteJid}, Alt: ${remoteJidAlt || 'none'}, Type: ${messageType}, FromMe: ${fromMe}, SenderPn: ${senderPn || 'unknown'}`);
+            this.logger.log(`${isHistorySync ? '[HISTORY]' : '[REALTIME]'} Message - Session: ${sessionId}, From: ${remoteJid}, Alt: ${remoteJidAlt || 'none'}, Type: ${messageType}, FromMe: ${fromMe}, SenderPn: ${senderPn || 'unknown'}`);
 
             await this.notifyMessage({
               sessionId,
@@ -626,6 +675,217 @@ export class WhatsAppService implements OnModuleDestroy {
               }
             }
           }
+
+          // CRITICAL: Process historical messages from full history sync
+          // This captures messages that were received while the session was disconnected
+          if (data?.messages && Array.isArray(data.messages)) {
+            this.logger.log(`Processing ${data.messages.length} messages from messaging-history.set for session ${sessionId}`);
+
+            for (const msg of data.messages) {
+              try {
+                // Skip status broadcasts
+                if (msg.key?.remoteJid === 'status@broadcast') {
+                  continue;
+                }
+
+                // Skip if no message content
+                if (!msg.message) {
+                  continue;
+                }
+
+                const remoteJid = msg.key?.remoteJid || '';
+                const remoteJidAlt = (msg.key as any)?.remoteJidAlt || '';
+                const messageId = msg.key?.id || '';
+                const fromMe = msg.key?.fromMe || false;
+                const timestamp = msg.messageTimestamp as number || Math.floor(Date.now() / 1000);
+                const pushName = msg.pushName || '';
+
+                // Process reaction messages in history sync (previously skipped)
+                if (msg.message?.reactionMessage) {
+                  const reaction = msg.message.reactionMessage;
+                  const reactedMsgKey = reaction.key;
+
+                  if (reactedMsgKey?.id) {
+                    this.logger.log(
+                      `[HISTORY] Incoming reaction - Session: ${sessionId}, From: ${remoteJid}, ` +
+                      `Emoji: "${reaction.text || '[removed]'}", ` +
+                      `ReactedTo: ${reactedMsgKey.id}, ReactedMsgFromMe: ${reactedMsgKey.fromMe}`,
+                    );
+
+                    await this.notifyReaction({
+                      sessionId,
+                      remoteJid,
+                      messageId: reactedMsgKey.id,
+                      emoji: reaction.text || '',
+                      fromMe,
+                      reactedMessageFromMe: reactedMsgKey.fromMe || false,
+                      timestamp,
+                    });
+                  }
+                  continue; // Don't process reactions as regular messages
+                }
+
+                // Determine message type and content
+                let messageType: 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' = 'text';
+                let content = '';
+                let hasValidContent = false;
+
+                if (msg.message?.conversation) {
+                  messageType = 'text';
+                  content = msg.message.conversation;
+                  hasValidContent = content.trim().length > 0;
+                } else if (msg.message?.extendedTextMessage?.text) {
+                  messageType = 'text';
+                  content = msg.message.extendedTextMessage.text;
+                  hasValidContent = content.trim().length > 0;
+                } else if (msg.message?.imageMessage) {
+                  messageType = 'image';
+                  content = msg.message.imageMessage.caption || '';
+                  hasValidContent = true;
+                } else if (msg.message?.videoMessage) {
+                  messageType = 'video';
+                  content = msg.message.videoMessage.caption || '';
+                  hasValidContent = true;
+                } else if (msg.message?.audioMessage) {
+                  messageType = 'audio';
+                  hasValidContent = true;
+                } else if (msg.message?.documentMessage) {
+                  messageType = 'document';
+                  content = msg.message.documentMessage.fileName || 'Document';
+                  hasValidContent = true;
+                } else if (msg.message?.stickerMessage) {
+                  messageType = 'sticker';
+                  hasValidContent = true;
+                }
+
+                // Skip messages without valid content
+                if (!hasValidContent) {
+                  continue;
+                }
+
+                // Resolve phone number from LID
+                let senderPn: string | undefined;
+                const isLidFormat = remoteJid.includes('@lid');
+
+                if (isLidFormat) {
+                  if (remoteJidAlt && remoteJidAlt.includes('@s.whatsapp.net')) {
+                    senderPn = remoteJidAlt;
+                    this.storeLidMapping(sessionId, remoteJid, remoteJidAlt);
+                  } else {
+                    senderPn = this.getPhoneFromLid(sessionId, remoteJid);
+                  }
+                }
+
+                this.logger.log(`[HISTORY-SET] Message - Session: ${sessionId}, From: ${remoteJid}, Type: ${messageType}, FromMe: ${fromMe}`);
+
+                await this.notifyMessage({
+                  sessionId,
+                  remoteJid,
+                  remoteJidAlt: remoteJidAlt || undefined,
+                  messageId,
+                  fromMe,
+                  timestamp,
+                  type: messageType,
+                  content,
+                  mediaUrl: undefined,
+                  pushName,
+                  senderPn,
+                });
+              } catch (msgErr) {
+                this.logger.error(`Error processing history message: ${msgErr}`);
+              }
+            }
+          }
+
+          // Also process messages from conversations if present (different history sync format)
+          if (data?.chats && Array.isArray(data.chats)) {
+            for (const chat of data.chats) {
+              if (chat.messages && Array.isArray(chat.messages)) {
+                this.logger.log(`Processing ${chat.messages.length} messages from chat ${chat.id} in history sync`);
+
+                for (const msg of chat.messages) {
+                  try {
+                    if (!msg.message || msg.key?.remoteJid === 'status@broadcast') {
+                      continue;
+                    }
+
+                    const remoteJid = msg.key?.remoteJid || chat.id || '';
+                    const remoteJidAlt = (msg.key as any)?.remoteJidAlt || '';
+                    const messageId = msg.key?.id || '';
+                    const fromMe = msg.key?.fromMe || false;
+                    const timestamp = msg.messageTimestamp as number || Math.floor(Date.now() / 1000);
+                    const pushName = msg.pushName || '';
+
+                    if (msg.message?.reactionMessage) {
+                      continue;
+                    }
+
+                    let messageType: 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' = 'text';
+                    let content = '';
+                    let hasValidContent = false;
+
+                    if (msg.message?.conversation) {
+                      content = msg.message.conversation;
+                      hasValidContent = content.trim().length > 0;
+                    } else if (msg.message?.extendedTextMessage?.text) {
+                      content = msg.message.extendedTextMessage.text;
+                      hasValidContent = content.trim().length > 0;
+                    } else if (msg.message?.imageMessage) {
+                      messageType = 'image';
+                      content = msg.message.imageMessage.caption || '';
+                      hasValidContent = true;
+                    } else if (msg.message?.videoMessage) {
+                      messageType = 'video';
+                      content = msg.message.videoMessage.caption || '';
+                      hasValidContent = true;
+                    } else if (msg.message?.audioMessage) {
+                      messageType = 'audio';
+                      hasValidContent = true;
+                    } else if (msg.message?.documentMessage) {
+                      messageType = 'document';
+                      content = msg.message.documentMessage.fileName || 'Document';
+                      hasValidContent = true;
+                    } else if (msg.message?.stickerMessage) {
+                      messageType = 'sticker';
+                      hasValidContent = true;
+                    }
+
+                    if (!hasValidContent) {
+                      continue;
+                    }
+
+                    let senderPn: string | undefined;
+                    const isLidFormat = remoteJid.includes('@lid');
+
+                    if (isLidFormat) {
+                      if (remoteJidAlt && remoteJidAlt.includes('@s.whatsapp.net')) {
+                        senderPn = remoteJidAlt;
+                        this.storeLidMapping(sessionId, remoteJid, remoteJidAlt);
+                      } else {
+                        senderPn = this.getPhoneFromLid(sessionId, remoteJid);
+                      }
+                    }
+
+                    await this.notifyMessage({
+                      sessionId,
+                      remoteJid,
+                      remoteJidAlt: remoteJidAlt || undefined,
+                      messageId,
+                      fromMe,
+                      timestamp,
+                      type: messageType,
+                      content,
+                      mediaUrl: undefined,
+                      pushName,
+                      senderPn,
+                    });
+                  } catch (msgErr) {
+                    this.logger.error(`Error processing chat history message: ${msgErr}`);
+                  }
+                }
+              }
+            }
+          }
         } catch (err) {
           this.logger.error(`Error processing messaging history: ${err}`);
         }
@@ -724,7 +984,7 @@ export class WhatsAppService implements OnModuleDestroy {
     return this.connections.get(sessionId)?.status || 'disconnected';
   }
 
-  private clearSession(sessionId: string) {
+  private async clearSession(sessionId: string) {
     const sessionDir = path.join(this.authDir, sessionId);
     if (fs.existsSync(sessionDir)) {
       fs.rmSync(sessionDir, { recursive: true, force: true });
@@ -732,7 +992,7 @@ export class WhatsAppService implements OnModuleDestroy {
     this.connections.delete(sessionId);
 
     // Clean up session-related data to prevent memory leaks
-    this.lidMappings.delete(sessionId);
+    await this.lidMapping.clearSession(sessionId);
     this.messageTimestamps.delete(sessionId);
     this.presenceTimestamps.delete(sessionId);
     this.reconnectAttempts.delete(sessionId);
@@ -899,42 +1159,37 @@ export class WhatsAppService implements OnModuleDestroy {
   }
 
   /**
-   * Store a LID to Phone Number mapping for a session
+   * Store a LID to Phone Number mapping for a session.
+   * Now uses persistent database storage with in-memory cache.
+   * Database persistence is fire-and-forget for performance.
    * @param sessionId - The session ID
    * @param lid - The LID (e.g., 12345@lid)
    * @param phoneJid - The phone JID (e.g., 1234567890@s.whatsapp.net)
    */
-  // Maximum number of LID mappings per session to prevent memory leaks
-  private readonly MAX_LID_MAPPINGS_PER_SESSION = 10000;
-
   storeLidMapping(sessionId: string, lid: string, phoneJid: string): void {
-    if (!this.lidMappings.has(sessionId)) {
-      this.lidMappings.set(sessionId, new Map());
-    }
-    const sessionMappings = this.lidMappings.get(sessionId)!;
-
-    // If we're at capacity and this is a new mapping, remove oldest entries
-    if (sessionMappings.size >= this.MAX_LID_MAPPINGS_PER_SESSION && !sessionMappings.has(lid)) {
-      // Remove oldest 10% of mappings to make room (Maps maintain insertion order)
-      const keysToDelete = Array.from(sessionMappings.keys()).slice(0, Math.floor(this.MAX_LID_MAPPINGS_PER_SESSION * 0.1));
-      for (const key of keysToDelete) {
-        sessionMappings.delete(key);
-      }
-      this.logger.debug(`Pruned ${keysToDelete.length} old LID mappings for session ${sessionId}`);
-    }
-
-    sessionMappings.set(lid, phoneJid);
-    this.logger.debug(`Stored LID mapping: ${lid} -> ${phoneJid} (total: ${sessionMappings.size})`);
+    // Fire-and-forget database persistence while immediate cache update
+    this.lidMapping.store(sessionId, lid, phoneJid).catch((err) => {
+      this.logger.error(`Failed to persist LID mapping: ${err}`);
+    });
   }
 
   /**
-   * Get phone JID from LID for a session
+   * Get phone JID from LID for a session (synchronous from cache).
+   * For high-frequency lookups during message processing.
    * @param sessionId - The session ID
    * @param lid - The LID to look up
-   * @returns The phone JID if found, undefined otherwise
+   * @returns The phone JID if found, null otherwise
    */
-  getPhoneFromLid(sessionId: string, lid: string): string | undefined {
-    return this.lidMappings.get(sessionId)?.get(lid);
+  getPhoneFromLid(sessionId: string, lid: string): string | null {
+    return this.lidMapping.getSync(sessionId, lid);
+  }
+
+  /**
+   * Get phone JID from LID with fallback to database (asynchronous).
+   * Used for initial lookup or cache miss scenarios.
+   */
+  async getPhoneFromLidAsync(sessionId: string, lid: string): Promise<string | null> {
+    return this.lidMapping.get(sessionId, lid);
   }
 
   /**
