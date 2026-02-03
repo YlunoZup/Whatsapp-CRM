@@ -1,0 +1,1521 @@
+================================================================================
+                    WHATSAPP CRM RESEARCH DOCUMENT
+                    Comprehensive Research for Building a WhatsApp CRM
+                    with Multi-Account Support & API Integrations
+                    Research Date: January 2026
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. WHATSAPP WEB LIBRARIES (Unofficial APIs)
+2. OPEN-SOURCE WHATSAPP CRM PROJECTS
+3. MULTI-ACCOUNT MANAGEMENT SOLUTIONS
+4. CRM API INTEGRATION PATTERNS (n8n, Zapier, GoHighLevel, Make.com)
+5. WHATSAPP WEB PROTOCOL & REVERSE ENGINEERING
+6. DATABASE SCHEMAS & ARCHITECTURES
+7.  MESSAGE QUEUE SYSTEMS
+8. UI/DASHBOARD FRAMEWORKS
+9. WEBHOOK PATTERNS & REAL-TIME MESSAGING
+10. CHATBOT BUILDERS & AI INTEGRATION
+11. MULTI-TENANT SAAS ARCHITECTURE
+12. RISKS & LEGAL CONSIDERATIONS
+13. RECOMMENDED TECH STACK
+14. KEY OPEN-SOURCE PROJECTS SUMMARY
+15. SOURCES & REFERENCES
+
+================================================================================
+1. WHATSAPP WEB LIBRARIES (Unofficial APIs - Personal WhatsApp)
+================================================================================
+
+These libraries allow connecting to personal WhatsApp accounts (NOT WhatsApp
+Business API/WABA). They reverse-engineer the WhatsApp Web protocol.
+
+--------------------------------------------------------------------------------
+1.1 BAILEYS (WhiskeySockets) - HIGHLY RECOMMENDED
+--------------------------------------------------------------------------------
+GitHub: https://github.com/WhiskeySockets/Baileys
+Documentation: https://baileys.wiki
+NPM: @whiskeysockets/baileys
+License: MIT
+
+Description:
+- WebSocket-based TypeScript/JavaScript library for WhatsApp Web API
+- Does NOT require Selenium or Chromium (saves ~500MB RAM)
+- Supports WhatsApp multi-device feature
+- Community-maintained (original repo was removed)
+
+Key Features:
+- Multi-device support (up to 4 devices)
+- QR Code and Pairing Code authentication
+- Send/receive text, images, videos, audio, documents, stickers, locations
+- Group management
+- Status/Stories support
+- Presence updates (online/offline/typing)
+- Message reactions
+- View once messages
+- Polls
+
+Requirements:
+- Node.js 17+
+- TypeScript recommended
+
+Authentication:
+- QR Code scanning from phone
+- Pairing Code method
+
+REST API Wrappers for Baileys:
+1. Baileys-2025-Rest-API (PointerSoftware)
+   GitHub: https://github.com/PointerSoftware/Baileys-2025-Rest-API
+   - Multi-session support
+   - Management dashboard
+   - Docker support
+   - PostgreSQL + Redis
+
+2. baileys-api (nizarfadlan)
+   GitHub: https://github.com/nizarfadlan/baileys-api
+   - REST API with multiple device support
+   - Prisma ORM (MySQL/PostgreSQL)
+
+3. Super-Light-Web-WhatsApp-API-Server
+   GitHub: https://github.com/Alucard0x1/Super-Light-Web-WhatsApp-API-Server
+   - Lightweight implementation
+   - Web dashboard
+
+--------------------------------------------------------------------------------
+1.2 WHATSAPP-WEB.JS
+--------------------------------------------------------------------------------
+GitHub: https://github.com/pedroslopez/whatsapp-web.js
+Documentation: https://wwebjs.dev
+NPM: whatsapp-web.js
+
+Description:
+- Node.js library that connects through WhatsApp Web browser app
+- Uses Puppeteer for browser automation
+- Unofficial, open-source library
+
+Key Features:
+- Multi-session support with LocalAuth and RemoteAuth strategies
+- Send text, media, location, contacts
+- Group management
+- Message reactions
+- Mentions and replies
+
+Multi-Session Example:
+```javascript
+const client1 = new Client({
+    authStrategy: new LocalAuth({ clientId: "client-one" })
+});
+const client2 = new Client({
+    authStrategy: new LocalAuth({ clientId: "client-two" })
+});
+```
+
+RemoteAuth Strategy:
+- Save sessions to remote database
+- Periodic backups
+- Suitable for ephemeral filesystems (Heroku, etc.)
+
+--------------------------------------------------------------------------------
+1.3 WPPCONNECT
+--------------------------------------------------------------------------------
+GitHub: https://github.com/wppconnect-team/wppconnect
+WA-JS: https://github.com/wppconnect-team/wa-js
+License: MIT
+
+Description:
+- JavaScript community project
+- Export functions from WhatsApp Web to Node.js
+- Multi-session support with dynamic management
+
+Key Features:
+- Multiple sessions simultaneously
+- Automatic QR code refreshing
+- Rich media transmission (images, videos, audio, documents, stickers, location)
+- WPPConnect Server (backend interface)
+- ReactJS Frontend for session management
+
+Related Projects:
+- WPPConnect Server: Full REST API server
+- WPPConnect FrontEnd: React-based UI for multi-session management
+
+--------------------------------------------------------------------------------
+1.4 WHATSMEOW (Golang)
+--------------------------------------------------------------------------------
+GitHub: https://github.com/tulir/whatsmeow
+Package: go.mau.fi/whatsmeow
+License: MPL-2.0
+
+Description:
+- Go library for WhatsApp Web multi-device API
+- Direct WebSocket communication (no Puppeteer/Chrome)
+- Low memory and CPU usage
+- Fast and efficient
+
+Key Features:
+- QR code and pairing code authentication
+- Send/receive messages
+- Media handling
+- SQL-backed session storage (store/sqlstore package)
+
+REST API Implementations:
+1. go-whatsapp-web-multidevice (aldinokemal)
+   GitHub: https://github.com/aldinokemal/go-whatsapp-web-multidevice
+   - Multi-device support
+   - Device Management API endpoints
+
+2. wuzapi (asternic/pedroherpeto)
+   GitHub: https://github.com/asternic/wuzapi
+   - Simple RESTful API
+   - Multiple message types support
+
+3. go-whatsapp-multidevice-rest (dimaskiddo)
+   GitHub: https://github.com/dimaskiddo/go-whatsapp-multidevice-rest
+   - Multi-Session/Account Support
+   - labstack/echo v4.x
+
+--------------------------------------------------------------------------------
+1.5 WAHA (WhatsApp HTTP API)
+--------------------------------------------------------------------------------
+GitHub: https://github.com/devlikeapro/waha
+Website: https://waha.devlike.pro
+Docker Hub: https://hub.docker.com/r/devlikeapro/waha
+
+Description:
+- Self-hosted WhatsApp REST API
+- Multiple backend engines: WEBJS (browser), NOWEB (websocket nodejs), GOWS (go)
+- Open-source with no third-party dependencies
+
+Key Features:
+- 3 engine options
+- Swagger documentation & OpenAPI schema
+- Dashboard web interface
+- Session management
+- Send/receive all message types
+- WhatsApp Channels and Status support
+
+Docker Quick Start:
+```bash
+docker run -it --rm -p 3000:3000/tcp --name waha devlikeapro/waha
+```
+
+2025 Updates:
+- WAHA 2025.2: Search Channels API, Profile API
+- WAHA 2025.1: PostgreSQL support, GOWS engine
+
+Versions:
+- WAHA Core: Always free, no limits
+- WAHA Plus: Premium features
+
+--------------------------------------------------------------------------------
+1.6 EVOLUTION API - HIGHLY RECOMMENDED
+--------------------------------------------------------------------------------
+GitHub: https://github.com/EvolutionAPI/evolution-api
+Documentation: https://doc.evolution-api.com
+Docker Hub: https://hub.docker.com/r/atendai/evolution-api
+
+Description:
+- Open-source WhatsApp integration API
+- Implementation of Baileys as a RESTful API
+- Multi-service chats, bots, automation
+
+Key Features:
+- Multi-instance/session support
+- QR code session management
+- RESTful API
+- Integrations with Typebot, Chatwoot, Dify, OpenAI
+- Supports both Baileys-based API and official WhatsApp Business API
+- Upcoming: Instagram, Messenger support
+
+Tech Stack:
+- TypeScript
+- PostgreSQL
+- S3/MinIO (media storage)
+- RabbitMQ/SQS (message queues)
+- Docker deployment
+
+Evolution Manager:
+GitHub: https://github.com/EvolutionAPI/evolution-manager-v2
+- Web dashboard for API management
+- Chatbot integrations
+- Real-time monitoring
+- Multi-language support (PT-BR, EN-US, ES-ES, FR-FR)
+- Radix UI + Tailwind CSS
+
+--------------------------------------------------------------------------------
+1.7 YOWSUP (Python) - LEGACY/UNMAINTAINED
+--------------------------------------------------------------------------------
+GitHub: https://github.com/tgalal/yowsup
+License: GPLv3+
+
+Description:
+- Python library for WhatsApp
+- Used in Wazapp (Nokia N9) and OpenWA (BB10)
+- May not work with current WhatsApp protocol
+
+Related Projects:
+- python-axolotl (E2E encryption)
+- consonance (Noise Protocol handshake)
+- dissononce (Noise Protocol Framework)
+
+Status: Likely outdated - check GitHub for current functionality
+
+
+================================================================================
+2. OPEN-SOURCE WHATSAPP CRM PROJECTS
+================================================================================
+
+--------------------------------------------------------------------------------
+2.1 EVOLUTION API (See Section 1.6)
+--------------------------------------------------------------------------------
+The most complete open-source WhatsApp CRM solution
+
+--------------------------------------------------------------------------------
+2.2 CHATWOOT
+--------------------------------------------------------------------------------
+GitHub: https://github.com/chatwoot/chatwoot
+Website: https://www.chatwoot.com
+License: MIT
+
+Description:
+- Open-source live-chat, email support, omni-channel desk
+- Alternative to Intercom, Zendesk, Salesforce Service Cloud
+
+Channels Supported:
+- Website live chat
+- Email
+- Facebook, Instagram, Twitter
+- WhatsApp, Telegram, Line
+- SMS
+- TikTok (Alpha in v4.9)
+
+Key Features:
+- Shared inbox for all channels
+- Private notes and @mentions
+- Labels and auto-assignment
+- Canned responses
+- Keyboard shortcuts
+- Contact management (CRM built-in)
+- Contact notes for calls/meetings
+
+WhatsApp Integration:
+- Connect WhatsApp Business account
+- Evolution API integration supported
+- Baileys and official WABA support
+
+Recent Updates (2025):
+- AI assistant (Captain) migration to Ruby LLM
+- Improved WhatsApp, Instagram, LINE integrations
+- New CRM integrations planned
+
+Deployment:
+- Self-hosted (Docker)
+- Cloud hosted
+- AWS Marketplace
+
+--------------------------------------------------------------------------------
+2.3 FRAPPE CRM + FRAPPE WHATSAPP
+--------------------------------------------------------------------------------
+Frappe CRM GitHub: https://github.com/frappe/crm
+Frappe WhatsApp GitHub: https://github.com/shridarpatil/frappe_whatsapp
+
+Description:
+- Fully featured, open-source CRM
+- Built on Frappe Framework
+- Native WhatsApp integration
+
+Frappe WhatsApp Features:
+- Multi-account support
+- Two-way messaging with conversation tracking
+- Template management
+- WhatsApp Flows (interactive forms)
+- Bulk messaging with variable substitution
+- Native ERPNext integration
+
+--------------------------------------------------------------------------------
+2.4 WHATOMATE
+--------------------------------------------------------------------------------
+GitHub: https://github.com/shridarpatil/whatomate
+
+Description:
+- Modern, open-source WhatsApp Business Platform
+- Multi-tenant architecture
+
+Key Features:
+- Multiple organizations with isolated data
+- Granular roles and permissions
+- WhatsApp Cloud API integration
+- Real-time chat with WebSocket
+- Bulk campaigns
+- Chatbot automation with AI (OpenAI, Anthropic, Google)
+
+--------------------------------------------------------------------------------
+2.5 KRAYIN LARAVEL CRM
+--------------------------------------------------------------------------------
+GitHub: https://github.com/krayin/laravel-crm
+License: MIT
+
+Description:
+- Open-source CRM built on Laravel + Vue.js
+- Complete customer lifecycle management
+
+Key Features:
+- WhatsApp Extension for lead generation
+- Multi-Tenant SaaS option
+- Isolated data per business
+- Free for SMEs and Enterprises
+
+--------------------------------------------------------------------------------
+2.6 CRM KANBAN WHATSAPP 2025
+--------------------------------------------------------------------------------
+GitHub: https://github.com/sempicanha/crm-kanban-whatsapp
+
+Description:
+- WhatsApp Web CRM Kanban extension
+- Browser extension for CRM functionality
+
+--------------------------------------------------------------------------------
+2.7 RECEEVI
+--------------------------------------------------------------------------------
+GitHub: https://github.com/receevi/receevi
+
+Description:
+- Open-source WhatsApp Business Solution
+- WhatsApp Cloud API webhook receiver
+
+
+================================================================================
+3. MULTI-ACCOUNT MANAGEMENT SOLUTIONS
+================================================================================
+
+--------------------------------------------------------------------------------
+3.1 Key Libraries with Multi-Session Support
+--------------------------------------------------------------------------------
+
+| Library          | Language    | Multi-Session | Session Storage          |
+|------------------|-------------|---------------|--------------------------|
+| Baileys          | TypeScript  | Yes           | Custom (file/DB)         |
+| whatsapp-web.js  | JavaScript  | Yes           | LocalAuth/RemoteAuth     |
+| WPPConnect       | JavaScript  | Yes           | Custom                   |
+| whatsmeow        | Go          | Yes           | SQL-backed               |
+| WAHA             | TypeScript  | Yes           | PostgreSQL               |
+| Evolution API    | TypeScript  | Yes           | PostgreSQL + Redis       |
+
+--------------------------------------------------------------------------------
+3.2 REST API Solutions for Multi-Account
+--------------------------------------------------------------------------------
+
+1. Evolution API
+   - Best overall solution
+   - Multiple instances via API
+   - Docker + PostgreSQL + Redis
+
+2. Baileys-2025-Rest-API
+   - Dedicated multi-session support
+   - Management dashboard
+
+3. WAHA
+   - Simple self-hosted solution
+   - 3 backend engine options
+
+4. WPPConnect Server
+   - Multi-session dynamic management
+   - React frontend included
+
+--------------------------------------------------------------------------------
+3.3 Session Management Patterns
+--------------------------------------------------------------------------------
+
+Instance Creation Flow:
+1. API call to create new session
+2. Generate QR code
+3. User scans QR with WhatsApp mobile app
+4. Session transitions to "connected" status
+5. Store session credentials in database
+6. Ready for messaging
+
+Session Storage Options:
+- File-based (LocalAuth) - not for ephemeral hosts
+- Database (PostgreSQL/MySQL/SQLite)
+- Redis (for session state/cache)
+- S3/MinIO (for backups)
+
+Reconnection Handling:
+- Automatic reconnection logic
+- QR refresh on timeout
+- Session restoration from stored credentials
+
+
+================================================================================
+4. CRM API INTEGRATION PATTERNS
+================================================================================
+
+--------------------------------------------------------------------------------
+4.1 N8N INTEGRATION
+--------------------------------------------------------------------------------
+Website: https://n8n.io
+
+Description:
+- Open-source workflow automation
+- Self-hosted option
+- Visual workflow builder
+
+WhatsApp Integration Methods:
+
+1. Official WhatsApp Business Cloud:
+   - Native n8n node
+   - Webhook trigger for incoming messages
+   - Send messages action
+
+2. Unofficial API via Evolution API:
+   - Community nodes available
+   - Webhook integration
+   - Full messaging support
+
+3. Third-party services:
+   - WASenderAPI community node
+   - Custom HTTP requests to any WhatsApp API
+
+Webhook Setup:
+1. Create Webhook node in n8n (POST method)
+2. Copy production webhook URL
+3. Register webhook in WhatsApp Cloud API dashboard
+4. Complete verification handshake
+
+Use Cases:
+- Automated customer support
+- CRM integration for personalized responses
+- AI-powered chatbots (Ollama, Gemini, ChatGPT)
+- Order notifications
+- Lead management
+
+--------------------------------------------------------------------------------
+4.2 ZAPIER INTEGRATION
+--------------------------------------------------------------------------------
+Website: https://zapier.com
+
+Description:
+- Cloud-based automation platform
+- 5,000+ app integrations
+- No-code interface
+
+WhatsApp Options:
+- Official WhatsApp Business Cloud integration
+- Third-party WhatsApp services (Twilio, etc.)
+- Webhooks for custom integrations
+
+Limitations:
+- More expensive than n8n
+- Cloud-only (no self-hosting)
+- May have rate limits
+
+--------------------------------------------------------------------------------
+4.3 GOHIGHLEVEL INTEGRATION
+--------------------------------------------------------------------------------
+Website: https://gohighlevel.com
+Documentation: https://help.gohighlevel.com
+
+Description:
+- All-in-one marketing platform
+- CRM, automation, website builder
+- Agency-focused
+
+WhatsApp Integration:
+- Native WhatsApp Business API integration
+- Requires Meta Business Manager setup
+- $10/month/location fee
+
+Features:
+- Workflow automation triggers (Customer Replied)
+- Smart branching for WhatsApp flows
+- Template message support
+- WhatsApp Coexistence (dual-platform)
+
+Webhook Integration:
+- Custom Webhook workflow action
+- GET, POST, PUT, DELETE methods
+- Authentication: Bearer token, API key, Basic Auth, OAuth2
+- Webhook Logs Dashboard for monitoring
+
+Events Available:
+- Contact Events (creation, updates, deletion, tag changes)
+- Opportunity Events
+- Task Events
+- Appointment Events
+- Invoice Events
+
+--------------------------------------------------------------------------------
+4.4 MAKE.COM (INTEGROMAT) INTEGRATION
+--------------------------------------------------------------------------------
+Website: https://make.com
+
+Description:
+- Visual automation platform
+- Affordable Zapier alternative
+- 2,000+ app integrations
+
+WhatsApp Integration Options:
+
+1. WhatsApp Business Cloud (native):
+   - Direct integration available
+   - Webhook support
+
+2. Third-party providers:
+   - Wati
+   - Wassenger
+   - Whapi.cloud
+   - ChatArchitect
+   - InOut Personal WhatsApp
+
+Key Features:
+- Visual scenario builder
+- HTTPS request capabilities
+- Webhook triggers
+- Variable substitution
+- Error handling
+
+Common Automations:
+- Abandoned cart recovery
+- Payment notifications
+- Appointment reminders
+- Lead capture
+- Customer feedback
+
+--------------------------------------------------------------------------------
+4.5 WEBHOOK BEST PRACTICES
+--------------------------------------------------------------------------------
+
+Security:
+- HMAC signature validation (RFC 2104)
+- Constant-time digest comparison
+- Payload format validation
+- API keys per endpoint
+- OAuth 2.0 where needed
+- IP allow-listing
+
+Reliability:
+- Enqueue events to durable queue
+- Return 2xx immediately after persisting
+- Exponential backoff + jitter for retries
+- Dead Letter Queue (DLQ) for failed events
+- Idempotency with message IDs
+
+Performance:
+- Quick acknowledgment (< 10 seconds)
+- Async processing after ACK
+- Fan-out pattern for multiple actions
+
+CRM-Specific:
+- Ignore integration user changes
+- Compare timestamps
+- Use directional flags to prevent loops
+- Handle at-least-once delivery
+
+
+================================================================================
+5. WHATSAPP WEB PROTOCOL & REVERSE ENGINEERING
+================================================================================
+
+--------------------------------------------------------------------------------
+5.1 Protocol Overview
+--------------------------------------------------------------------------------
+
+WhatsApp Web uses:
+- WebSocket for real-time communication
+- Binary protocol (protobuf)
+- Signal Protocol for E2E encryption
+
+Encryption:
+- AES 256 CBC
+- Curve25519 (Diffie-Hellman)
+- HKDF for shared secret
+- HMAC with SHA256
+
+Multi-Device Architecture:
+- Up to 4 devices can send/receive directly
+- Each device has E2E encryption with contacts
+- Server coordinates message delivery
+
+--------------------------------------------------------------------------------
+5.2 Key Reverse Engineering Projects
+--------------------------------------------------------------------------------
+
+1. sigalor/whatsapp-web-reveng
+   GitHub: https://github.com/sigalor/whatsapp-web-reveng
+   - Complete protocol description
+   - Reference implementation
+
+2. sigalor/whatsapp-web-multi-device-reveng
+   GitHub: https://github.com/sigalor/whatsapp-web-multi-device-reveng
+   - Multi-device specific research
+   - Discord channel for collaboration
+
+3. Check Point Research (Black Hat 2019)
+   - WhatsApp encryption reverse engineering
+   - Vulnerability research
+
+--------------------------------------------------------------------------------
+5.3 Protocol Libraries by Language
+--------------------------------------------------------------------------------
+
+| Language   | Library       | Status           |
+|------------|---------------|------------------|
+| TypeScript | Baileys       | Active           |
+| JavaScript | whatsapp-web.js| Active          |
+| Go         | whatsmeow     | Active           |
+| Python     | yowsup        | Likely outdated  |
+
+--------------------------------------------------------------------------------
+5.4 Session Data
+--------------------------------------------------------------------------------
+
+Browser localStorage key: WebEncKeySalt (base64 encoded)
+
+Session contains:
+- Client ID
+- Server token
+- Client token
+- Encryption keys
+
+
+================================================================================
+6. DATABASE SCHEMAS & ARCHITECTURES
+================================================================================
+
+--------------------------------------------------------------------------------
+6.1 Database Recommendations
+--------------------------------------------------------------------------------
+
+| Database   | Use Case                  | Performance              |
+|------------|---------------------------|--------------------------|
+| PostgreSQL | User profiles, CRM data   | 1-5ms read, 2-10ms write |
+| Cassandra  | Messages, time-series     | 1-10ms read, <1ms write  |
+| MongoDB    | Messages, flexible schema | Depends on setup         |
+| Redis      | Cache, sessions, real-time| <1ms read/write          |
+
+Recommended Pattern:
+- PostgreSQL for ACID transactions (contacts, users, settings)
+- Cassandra/MongoDB for high-volume messages
+- Redis for caching and real-time data
+
+--------------------------------------------------------------------------------
+6.2 Core Entities
+--------------------------------------------------------------------------------
+
+Users/Contacts:
+```sql
+CREATE TABLE contacts (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    whatsapp_id VARCHAR(50),
+    phone VARCHAR(20),
+    name VARCHAR(255),
+    email VARCHAR(255),
+    avatar_url TEXT,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+WhatsApp Sessions:
+```sql
+CREATE TABLE whatsapp_sessions (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    session_name VARCHAR(100),
+    phone_number VARCHAR(20),
+    status VARCHAR(20), -- connected, disconnected, qr_pending
+    qr_code TEXT,
+    credentials JSONB,
+    last_connected_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+Conversations:
+```sql
+CREATE TABLE conversations (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    session_id UUID REFERENCES whatsapp_sessions(id),
+    contact_id UUID REFERENCES contacts(id),
+    last_message_at TIMESTAMP,
+    unread_count INTEGER DEFAULT 0,
+    status VARCHAR(20), -- open, closed, pending
+    assigned_to UUID,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+Messages:
+```sql
+CREATE TABLE messages (
+    id UUID PRIMARY KEY,
+    conversation_id UUID REFERENCES conversations(id),
+    whatsapp_message_id VARCHAR(100),
+    direction VARCHAR(10), -- inbound, outbound
+    type VARCHAR(20), -- text, image, video, audio, document
+    content TEXT,
+    media_url TEXT,
+    status VARCHAR(20), -- pending, sent, delivered, read, failed
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+--------------------------------------------------------------------------------
+6.3 Pagination Strategies
+--------------------------------------------------------------------------------
+
+Cursor-Based Pagination (Recommended):
+- Use message timestamp or sequence number as cursor
+- More efficient for real-time chat
+- No issues with data changes between pages
+
+Example:
+```sql
+SELECT * FROM messages
+WHERE conversation_id = ?
+AND created_at < ?  -- cursor
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Sharding Strategy:
+- Modulo-based sharding by conversation_id
+- conversation_id % 10 = table_number
+- Distribute load across multiple tables
+
+--------------------------------------------------------------------------------
+6.4 Message Ordering
+--------------------------------------------------------------------------------
+
+Server Sequence Numbers:
+- Assign sequence on server receipt
+- Use as tie-breaker for simultaneous messages
+- Clients render by sequence order
+
+Schema Addition:
+```sql
+ALTER TABLE messages ADD COLUMN sequence_number BIGINT;
+CREATE INDEX idx_messages_sequence ON messages(conversation_id, sequence_number);
+```
+
+
+================================================================================
+7. MESSAGE QUEUE SYSTEMS
+================================================================================
+
+--------------------------------------------------------------------------------
+7.1 Options Comparison
+--------------------------------------------------------------------------------
+
+| System    | Best For                    | Persistence | Latency  |
+|-----------|-----------------------------| ------------|----------|
+| RabbitMQ  | Reliable task queues        | Yes         | Low      |
+| Redis     | Low-latency, lightweight    | Optional    | Very Low |
+| Kafka     | High-throughput streaming   | Yes         | Medium   |
+| BullMQ    | Node.js job scheduling      | Redis-based | Low      |
+
+--------------------------------------------------------------------------------
+7.2 RabbitMQ
+--------------------------------------------------------------------------------
+
+Best for:
+- Complex routing
+- Reliable message delivery
+- Persistent messages
+- Horizontal scaling
+
+Use Cases:
+- Message sending queue
+- Webhook delivery
+- Background job processing
+
+--------------------------------------------------------------------------------
+7.3 Redis + BullMQ
+--------------------------------------------------------------------------------
+GitHub: https://github.com/taskforcesh/bullmq
+Documentation: https://docs.bullmq.io
+
+Description:
+- Message Queue and batch processing
+- Node.js, Python, Elixir, PHP support
+- Built on Redis
+
+Key Features:
+- Delayed jobs (scheduled messages)
+- Repeatable jobs (recurring tasks)
+- Rate limiting
+- Retries with backoff
+- Priority queues
+- Job progress tracking
+
+WhatsApp Message Scheduling Example:
+```javascript
+import { Queue, Worker } from 'bullmq';
+
+const messageQueue = new Queue('whatsapp-messages', {
+    connection: { host: 'localhost', port: 6379 }
+});
+
+// Schedule a message
+await messageQueue.add('send-message', {
+    sessionId: 'session-1',
+    to: '1234567890@s.whatsapp.net',
+    message: 'Hello!'
+}, {
+    delay: 60000 // Send in 1 minute
+});
+
+// Process messages
+const worker = new Worker('whatsapp-messages', async (job) => {
+    const { sessionId, to, message } = job.data;
+    await sendWhatsAppMessage(sessionId, to, message);
+});
+```
+
+--------------------------------------------------------------------------------
+7.4 Recommended Architecture
+--------------------------------------------------------------------------------
+
+```
+[API Server] --> [Redis/BullMQ] --> [Worker Processes]
+                      |
+                      v
+               [WhatsApp Sessions]
+                      |
+                      v
+               [WhatsApp Servers]
+```
+
+Benefits:
+- Decoupled message sending
+- Retry on failures
+- Rate limiting per session
+- Scheduled/delayed messages
+- High throughput
+
+
+================================================================================
+8. UI/DASHBOARD FRAMEWORKS
+================================================================================
+
+--------------------------------------------------------------------------------
+8.1 React Admin Templates
+--------------------------------------------------------------------------------
+
+1. CoreUI Free React Admin Template
+   GitHub: https://github.com/coreui/coreui-free-react-admin-template
+   - Bootstrap 5 + React 19
+   - Open source
+   - v5.5.0 (August 2025)
+
+2. Refine CRM Admin
+   Website: https://refine.dev
+   - Enterprise-grade template
+   - Dashboard, calendar, Kanban
+   - Company and contact management
+
+3. TailAdmin React
+   Website: https://tailadmin.com
+   - Tailwind CSS
+   - 500+ components
+   - 6 dashboard variations
+
+--------------------------------------------------------------------------------
+8.2 Vue Admin Templates
+--------------------------------------------------------------------------------
+
+1. TailAdmin Vue V2
+   Website: https://tailadmin.com
+   - Vue 3.5 + Tailwind CSS v4
+   - 500+ components
+   - CRM, e-commerce, analytics dashboards
+
+2. CoreUI Free Vue Admin Template
+   Website: https://coreui.io
+   - Bootstrap 5 + Vue 3
+   - Vue 3.5.18 + Vite 7 support (v5.4.0)
+
+3. Vue Soft UI Dashboard
+   - Smart home, VR, automotive, CRM dashboards
+
+--------------------------------------------------------------------------------
+8.3 Multi-Framework Solutions
+--------------------------------------------------------------------------------
+
+1. CoreUI
+   Website: https://coreui.io
+   - Bootstrap, Angular, React, Vue
+   - Premium and free versions
+
+2. Flatlogic
+   Website: https://flatlogic.com
+   - Angular, Bootstrap, React, Vue.js themes
+   - Free and open-source options
+
+--------------------------------------------------------------------------------
+8.4 Chat UI Components
+--------------------------------------------------------------------------------
+
+Key Requirements:
+- Message list with infinite scroll
+- Message input with media upload
+- Contact/conversation list
+- Search functionality
+- Real-time updates (WebSocket)
+- Typing indicators
+- Read receipts
+- Media preview/gallery
+
+
+================================================================================
+9. WEBHOOK PATTERNS & REAL-TIME MESSAGING
+================================================================================
+
+--------------------------------------------------------------------------------
+9.1 WebSocket vs Socket.IO
+--------------------------------------------------------------------------------
+
+WebSocket:
+- Raw protocol
+- Lower latency, higher throughput
+- Minimal overhead
+- Best for maximum performance
+
+Socket.IO:
+- Library over WebSocket
+- Auto-reconnection
+- Rooms and namespaces
+- Fallback to long-polling
+- Better for development speed
+
+Recommendation:
+- Use Socket.IO for CRM dashboard (ease of development)
+- Use WebSocket for high-performance bots
+
+--------------------------------------------------------------------------------
+9.2 Real-Time Architecture
+--------------------------------------------------------------------------------
+
+```
+[WhatsApp API] --> [Webhook Endpoint] --> [Message Queue]
+                                               |
+                                               v
+                                    [Event Processor]
+                                               |
+                      +------------------------+------------------------+
+                      |                        |                        |
+                      v                        v                        v
+               [Database]            [Socket.IO Server]          [Webhook Delivery]
+                                               |
+                                               v
+                                    [Client Dashboards]
+```
+
+--------------------------------------------------------------------------------
+9.3 Event Types to Handle
+--------------------------------------------------------------------------------
+
+From WhatsApp:
+- messages.upsert (new/updated messages)
+- messages.update (status changes)
+- messages.delete
+- contacts.update
+- chats.update
+- presence.update
+- connection.update (session state)
+- qr (QR code generated)
+
+To Clients:
+- new_message
+- message_status_update
+- typing_indicator
+- session_status
+- contact_update
+
+--------------------------------------------------------------------------------
+9.4 Webhook Delivery to External Systems
+--------------------------------------------------------------------------------
+
+Retry Strategy:
+- Exponential backoff: 1s, 2s, 4s, 8s, 16s...
+- Max retries: 5-10
+- Dead Letter Queue after failures
+
+Payload Format:
+```json
+{
+    "event": "message.received",
+    "timestamp": "2026-01-21T10:30:00Z",
+    "data": {
+        "messageId": "ABC123",
+        "from": "1234567890",
+        "to": "0987654321",
+        "type": "text",
+        "content": "Hello!",
+        "timestamp": "2026-01-21T10:29:55Z"
+    },
+    "session": {
+        "id": "session-uuid",
+        "phone": "0987654321"
+    }
+}
+```
+
+
+================================================================================
+10. CHATBOT BUILDERS & AI INTEGRATION
+================================================================================
+
+--------------------------------------------------------------------------------
+10.1 TYPEBOT
+--------------------------------------------------------------------------------
+GitHub: https://github.com/baptisteArno/typebot.io
+Website: https://typebot.io
+License: Functional Source License (Fair Source)
+
+Description:
+- No-code chatbot builder
+- Visual drag-and-drop interface
+- WhatsApp, web, and other platforms
+
+Key Features:
+- Self-hostable
+- Native WhatsApp integration
+- Google Sheets, OpenAI, Zapier, n8n integrations
+- Custom JavaScript & CSS
+- Webhooks support
+
+Free Plan:
+- Unlimited typebots
+- 200 chats/month
+- Native integrations
+- Community support
+
+--------------------------------------------------------------------------------
+10.2 BOTPRESS
+--------------------------------------------------------------------------------
+GitHub: https://github.com/botpress/botpress
+License: MIT
+
+Description:
+- Open-source hub for GPT/LLM agents
+- NLU capabilities
+- Multi-platform
+
+Key Features:
+- Visual flow editor
+- Multi-platform (WhatsApp, Messenger, Slack)
+- AI-powered understanding (NLP)
+- Self-hosting option (data privacy)
+- 750,000+ active bots
+
+Considerations:
+- Steeper learning curve
+- More configuration needed
+
+--------------------------------------------------------------------------------
+10.3 DIFY AI
+--------------------------------------------------------------------------------
+GitHub: https://github.com/langgenius/dify
+Website: https://dify.ai
+
+Description:
+- Open-source LLM application platform
+- Agentic AI workflows
+- RAG pipelines
+
+WhatsApp Integration:
+- Evolution API integration
+- WhatsApp Chatbot Connector (Hyperjump)
+
+Key Features:
+- Hundreds of LLM integrations
+- Visual workflow builder
+- Self-hostable (Docker)
+- Plugin system
+- OAuth support
+
+2025 Updates:
+- Knowledge Pipeline
+- Queue-based Graph Engine
+- GitHub, Gmail integrations
+
+--------------------------------------------------------------------------------
+10.4 AI Integration Patterns
+--------------------------------------------------------------------------------
+
+Architecture:
+```
+[WhatsApp Message] --> [Evolution API] --> [Webhook]
+                                              |
+                                              v
+                                    [AI Processing Layer]
+                                    (Dify/OpenAI/Anthropic)
+                                              |
+                                              v
+                                    [Response Generation]
+                                              |
+                                              v
+                                    [Evolution API] --> [WhatsApp]
+```
+
+Common AI Use Cases:
+- Automated customer support
+- FAQ answering
+- Lead qualification
+- Order status inquiries
+- Appointment scheduling
+- Product recommendations
+
+
+================================================================================
+11. MULTI-TENANT SAAS ARCHITECTURE
+================================================================================
+
+--------------------------------------------------------------------------------
+11.1 Multi-Tenancy Models
+--------------------------------------------------------------------------------
+
+1. Shared Database (Pooled):
+   - All tenants share tables
+   - TenantID column for isolation
+   - Row-Level Security (RLS)
+   - Lowest cost, easiest scaling
+   - Risk: "noisy neighbor" queries
+
+2. Database per Tenant:
+   - Complete data isolation
+   - Higher cost
+   - Better for compliance
+
+3. Schema per Tenant:
+   - Middle ground
+   - Shared database, separate schemas
+
+Recommendation for WhatsApp CRM:
+- Shared database with tenant_id columns
+- PostgreSQL Row-Level Security
+- Redis cache per tenant (prefix keys)
+
+--------------------------------------------------------------------------------
+11.2 Key Patterns
+--------------------------------------------------------------------------------
+
+Tenant Identification:
+- Subdomain (tenant1.app.com)
+- Request header (X-Tenant-ID)
+- JWT claim
+
+Data Isolation:
+```sql
+-- PostgreSQL RLS
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON messages
+    FOR ALL
+    USING (tenant_id = current_setting('app.current_tenant')::uuid);
+```
+
+WhatsApp Session Isolation:
+- Each tenant has own sessions
+- Session credentials encrypted per tenant
+- Separate webhook endpoints per tenant
+
+--------------------------------------------------------------------------------
+11.3 Security Checklist
+--------------------------------------------------------------------------------
+
+- Data encryption at rest and in transit
+- Role-based access control (RBAC)
+- Multi-factor authentication
+- Tenant data isolation validation
+- API rate limiting per tenant
+- Audit logging
+- Regular security assessments
+
+
+================================================================================
+12. RISKS & LEGAL CONSIDERATIONS
+================================================================================
+
+--------------------------------------------------------------------------------
+12.1 Terms of Service Violations
+--------------------------------------------------------------------------------
+
+WhatsApp's Position:
+- Unofficial apps violate Terms of Service
+- No validation of security/privacy practices
+- Risk of temporary or permanent bans
+
+Warning Signs Before Ban:
+"It looks like you may be using tools that don't follow our terms to
+send automated or bulk messages. This will lead to your account being
+restricted."
+
+--------------------------------------------------------------------------------
+12.2 Tools That Trigger Bans
+--------------------------------------------------------------------------------
+
+High Risk:
+- GB WhatsApp, FM WhatsApp, WhatsApp Plus
+- Unauthorized browser extensions
+- Third-party bulk messaging tools
+- Chrome extensions
+- WhatsApp mods
+- Number scraping tools
+
+Lower Risk (but still unofficial):
+- Baileys-based APIs (used responsibly)
+- whatsapp-web.js implementations
+- Evolution API (with proper usage)
+
+--------------------------------------------------------------------------------
+12.3 Best Practices to Minimize Risk
+--------------------------------------------------------------------------------
+
+1. Number Warm-up:
+   - Start with 30-50 messages/day
+   - Gradually increase over weeks
+   - Don't send bulk immediately
+
+2. Message Quality:
+   - No spam or unsolicited messages
+   - Personalized content
+   - Respect opt-outs
+
+3. Session Management:
+   - Don't login from many locations
+   - Maintain stable sessions
+   - Handle disconnections gracefully
+
+4. Rate Limiting:
+   - Respect WhatsApp's unofficial limits
+   - ~200-500 messages/day per number (conservative)
+   - Delays between messages
+
+--------------------------------------------------------------------------------
+12.4 Official Alternative: WhatsApp Business API (WABA)
+--------------------------------------------------------------------------------
+
+For Production/Commercial Use:
+- Partner with BSPs (Business Solution Providers)
+- Meta Tech partners
+- 100% policy-compliant
+- SLAs and support
+- Analytics and compliance features
+
+Cost:
+- Per-conversation pricing
+- Template message fees
+- BSP fees vary
+
+When to Use Official API:
+- Business-critical applications
+- High message volumes
+- Compliance requirements
+- Need for support/SLAs
+
+
+================================================================================
+13. RECOMMENDED TECH STACK
+================================================================================
+
+--------------------------------------------------------------------------------
+13.1 Option A: Node.js/TypeScript Stack (Recommended)
+--------------------------------------------------------------------------------
+
+Backend:
+- Runtime: Node.js 20+ or Bun
+- Framework: NestJS or Fastify
+- ORM: Prisma or Drizzle
+- Database: PostgreSQL
+- Cache: Redis
+- Queue: BullMQ
+- WhatsApp: Baileys (@whiskeysockets/baileys) or Evolution API
+
+Frontend:
+- Framework: React 18+ or Vue 3
+- State: Zustand or Pinia
+- UI: TailAdmin, CoreUI, or custom Tailwind
+- Real-time: Socket.IO client
+
+Infrastructure:
+- Container: Docker
+- Orchestration: Docker Compose or Kubernetes
+- Storage: MinIO (S3-compatible) for media
+- Reverse Proxy: Nginx or Traefik
+
+--------------------------------------------------------------------------------
+13.2 Option B: Python Stack
+--------------------------------------------------------------------------------
+
+Backend:
+- Framework: FastAPI
+- ORM: SQLAlchemy
+- Database: PostgreSQL
+- Cache: Redis
+- Queue: Celery with Redis
+- WhatsApp: PyWa library or HTTP calls to Evolution API
+
+Frontend:
+- Same as Option A
+
+--------------------------------------------------------------------------------
+13.3 Option C: Go Stack (High Performance)
+--------------------------------------------------------------------------------
+
+Backend:
+- Framework: Gin or Echo
+- ORM: GORM
+- Database: PostgreSQL
+- Cache: Redis
+- Queue: Asynq
+- WhatsApp: whatsmeow
+
+--------------------------------------------------------------------------------
+13.4 Quick Start with Evolution API
+--------------------------------------------------------------------------------
+
+docker-compose.yml:
+```yaml
+version: '3.8'
+
+services:
+  evolution-api:
+    image: atendai/evolution-api:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@postgres:5432/evolution
+      - REDIS_URL=redis://redis:6379
+      - WEBHOOK_URL=http://your-app:3000/webhook
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_DB=evolution
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+
+================================================================================
+14. KEY OPEN-SOURCE PROJECTS SUMMARY
+================================================================================
+
+--------------------------------------------------------------------------------
+TIER 1: Full Solutions (Ready to Use/Adapt)
+--------------------------------------------------------------------------------
+
+| Project        | Type           | GitHub Stars | Best For                  |
+|----------------|----------------|--------------|---------------------------|
+| Evolution API  | WhatsApp API   | 3.5k+        | Multi-account CRM         |
+| Chatwoot       | Omni-channel   | 20k+         | Full CRM solution         |
+| Typebot        | Chatbot        | 6k+          | No-code bots              |
+| Dify           | AI Platform    | 50k+         | AI-powered assistants     |
+
+--------------------------------------------------------------------------------
+TIER 2: Core Libraries (Build Your Own)
+--------------------------------------------------------------------------------
+
+| Library        | Language    | GitHub Stars | Best For                  |
+|----------------|-------------|--------------|---------------------------|
+| Baileys        | TypeScript  | 8k+          | Node.js WhatsApp clients  |
+| whatsapp-web.js| JavaScript  | 15k+         | Simple bots               |
+| whatsmeow      | Go          | 2k+          | High-performance clients  |
+| WPPConnect     | JavaScript  | 1.5k+        | Multi-session management  |
+
+--------------------------------------------------------------------------------
+TIER 3: CRM Frameworks (Customizable)
+--------------------------------------------------------------------------------
+
+| Project        | Framework   | GitHub Stars | Best For                  |
+|----------------|-------------|--------------|---------------------------|
+| Frappe CRM     | Frappe/Py   | 800+         | ERPNext integration       |
+| Krayin CRM     | Laravel     | 10k+         | Laravel developers        |
+| Twenty         | TypeScript  | 20k+         | Salesforce alternative    |
+| EspoCRM        | PHP         | 1.5k+        | Traditional CRM           |
+
+
+================================================================================
+15. SOURCES & REFERENCES
+================================================================================
+
+WhatsApp Libraries:
+- https://github.com/WhiskeySockets/Baileys
+- https://github.com/pedroslopez/whatsapp-web.js
+- https://github.com/wppconnect-team/wppconnect
+- https://github.com/tulir/whatsmeow
+- https://github.com/devlikeapro/waha
+- https://github.com/EvolutionAPI/evolution-api
+
+CRM Projects:
+- https://github.com/chatwoot/chatwoot
+- https://github.com/frappe/crm
+- https://github.com/krayin/laravel-crm
+- https://github.com/shridarpatil/whatomate
+- https://github.com/receevi/receevi
+
+Protocol Research:
+- https://github.com/sigalor/whatsapp-web-reveng
+- https://github.com/sigalor/whatsapp-web-multi-device-reveng
+
+Chatbot Platforms:
+- https://github.com/baptisteArno/typebot.io
+- https://github.com/botpress/botpress
+- https://github.com/langgenius/dify
+
+Admin Templates:
+- https://github.com/coreui/coreui-free-react-admin-template
+- https://tailadmin.com
+- https://refine.dev
+
+Job Queues:
+- https://github.com/taskforcesh/bullmq
+- https://docs.bullmq.io
+
+Integration Platforms:
+- https://n8n.io
+- https://make.com
+- https://help.gohighlevel.com
+
+Database Design:
+- https://www.geeksforgeeks.org/dbms/how-to-design-a-database-for-whatsapp/
+- https://dev.to/karanpratapsingh/system-design-whatsapp-fld
+
+WhatsApp Official:
+- https://faq.whatsapp.com/465883178708358 (About account bans)
+- https://faq.whatsapp.com/1217634902127718 (About unofficial apps)
+
+================================================================================
+                           END OF RESEARCH DOCUMENT
+================================================================================
+
+NEXT STEPS:
+1. Decide on tech stack (Node.js/TypeScript recommended)
+2. Set up Evolution API for WhatsApp connectivity
+3. Design database schema for multi-tenant support
+4. Build or adapt admin dashboard
+5. Implement webhook system for external integrations
+6. Add message queue for reliability
+7. Develop API endpoints for n8n/Zapier/GoHighLevel
+8. Test with limited accounts before scaling
+9. Implement proper rate limiting and session management
+10. Consider official WhatsApp Business API for production scale

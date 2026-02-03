@@ -1,0 +1,46 @@
+# Build stage
+FROM node:20-alpine AS builder
+
+# Build-time arguments for Vite
+ARG VITE_API_URL=/api/v1
+ENV VITE_API_URL=${VITE_API_URL}
+
+WORKDIR /app
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+
+# Copy package files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY apps/web/package.json ./apps/web/
+COPY packages/shared/package.json ./packages/shared/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source files
+COPY tsconfig.base.json ./
+COPY apps/web ./apps/web
+COPY packages/shared ./packages/shared
+
+# Build with environment variable
+WORKDIR /app/apps/web
+RUN pnpm build
+
+# Production stage
+FROM nginx:alpine AS runner
+
+# Copy nginx config
+COPY docker/nginx/web.nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy built files
+COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
+
+# Expose port
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]

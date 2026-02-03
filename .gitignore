@@ -1,0 +1,83 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# TypeScript
+*.tsbuildinfo
+
+# Prisma
+prisma/migrations/.migration_lock.toml
+
+# Docker
+docker/data/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
+*.tmp
+*.temp
+
+# Secrets and credentials
+*.pem
+*.key
+secrets/
+credentials/
+
+# WhatsApp session data
+sessions/
+.wwebjs_auth/
+.wwebjs_cache/
+.whatsapp-sessions/
+
+# MinIO data
+minio-data/
+
+# Redis data
+redis-data/
+
+# PostgreSQL data
+postgres-data/
+
+# Claude Code
+.claude/
+*.local.md

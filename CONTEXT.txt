@@ -1,0 +1,375 @@
+================================================================================
+                    WHATSAPP CRM PROJECT CONTEXT
+                    For Claude Code Context Scanning After Compaction
+                    Created: January 21, 2026
+================================================================================
+
+PROJECT OVERVIEW
+----------------
+Building a comprehensive WhatsApp CRM with:
+- Multi-account/multi-session WhatsApp support
+- Multi-tenant SaaS architecture
+- API integrations (n8n, Zapier, GoHighLevel, Make.com)
+- Real-time messaging with WebSocket/Socket.IO
+- AI/Chatbot integration capabilities
+- Message queue system for reliability
+
+================================================================================
+TECH STACK DECISION (Based on Research)
+================================================================================
+
+Backend:
+- Runtime: Node.js 20+ with TypeScript
+- Framework: NestJS (enterprise-grade, modular)
+- ORM: Prisma
+- Database: PostgreSQL (primary)
+- Cache: Redis
+- Queue: BullMQ
+- WhatsApp: Evolution API (wraps Baileys)
+
+Frontend:
+- Framework: React 18+ with TypeScript
+- State: Zustand
+- UI: Tailwind CSS + Radix UI
+- Real-time: Socket.IO client
+
+Infrastructure:
+- Container: Docker + Docker Compose
+- Storage: MinIO (S3-compatible) for media
+- Reverse Proxy: Nginx
+
+================================================================================
+PROJECT STRUCTURE
+================================================================================
+
+whatsapp-crm/
+├── apps/
+│   ├── api/                    # NestJS Backend
+│   │   ├── src/
+│   │   │   ├── modules/
+│   │   │   │   ├── auth/       # Authentication & authorization
+│   │   │   │   ├── tenants/    # Multi-tenant management
+│   │   │   │   ├── users/      # User management
+│   │   │   │   ├── contacts/   # Contact management
+│   │   │   │   ├── conversations/ # Conversation handling
+│   │   │   │   ├── messages/   # Message management
+│   │   │   │   ├── sessions/   # WhatsApp session management
+│   │   │   │   ├── webhooks/   # Webhook handling (incoming/outgoing)
+│   │   │   │   ├── integrations/ # External integrations
+│   │   │   │   └── ai/         # AI/Chatbot integration
+│   │   │   ├── common/         # Shared utilities, guards, filters
+│   │   │   ├── config/         # Configuration management
+│   │   │   └── main.ts
+│   │   └── prisma/
+│   │       └── schema.prisma
+│   │
+│   └── web/                    # React Frontend
+│       ├── src/
+│       │   ├── components/
+│       │   │   ├── chat/       # Chat UI components
+│       │   │   ├── contacts/   # Contact management UI
+│       │   │   ├── sessions/   # Session management UI
+│       │   │   ├── dashboard/  # Dashboard widgets
+│       │   │   └── common/     # Shared components
+│       │   ├── pages/
+│       │   ├── hooks/
+│       │   ├── stores/         # Zustand stores
+│       │   ├── services/       # API services
+│       │   └── utils/
+│       └── package.json
+│
+├── packages/
+│   └── shared/                 # Shared types and utilities
+│       ├── src/
+│       │   ├── types/
+│       │   └── utils/
+│       └── package.json
+│
+├── docker/
+│   ├── docker-compose.yml
+│   ├── docker-compose.dev.yml
+│   └── nginx/
+│
+├── docs/
+│   └── api/
+│
+├── CONTEXT.txt                 # This file - project context
+├── PROGRESS.md                 # Iteration progress tracking
+├── whatsapp_crm_research.txt   # Original research document
+└── package.json                # Monorepo root
+
+================================================================================
+DATABASE SCHEMA (Core Entities)
+================================================================================
+
+-- Tenants (Organizations)
+tenants: id, name, slug, settings, plan, created_at, updated_at
+
+-- Users (Team members)
+users: id, tenant_id, email, password_hash, name, role, avatar_url,
+       is_active, last_login_at, created_at, updated_at
+
+-- WhatsApp Sessions
+whatsapp_sessions: id, tenant_id, name, phone_number, status,
+                   qr_code, credentials, webhook_url, settings,
+                   last_connected_at, created_at, updated_at
+
+-- Contacts
+contacts: id, tenant_id, whatsapp_id, phone, name, email, avatar_url,
+          tags, metadata, created_at, updated_at
+
+-- Conversations
+conversations: id, tenant_id, session_id, contact_id, status,
+               assigned_to, last_message_at, unread_count,
+               metadata, created_at, updated_at
+
+-- Messages
+messages: id, conversation_id, whatsapp_message_id, direction,
+          type, content, media_url, status, metadata,
+          sequence_number, created_at
+
+-- Webhook Endpoints (Outgoing)
+webhook_endpoints: id, tenant_id, name, url, events, secret,
+                   is_active, last_triggered_at, created_at
+
+-- Webhook Logs
+webhook_logs: id, endpoint_id, event, payload, response_status,
+              response_body, attempts, created_at
+
+-- API Keys
+api_keys: id, tenant_id, name, key_hash, permissions,
+          last_used_at, expires_at, created_at
+
+-- Message Templates
+message_templates: id, tenant_id, name, content, variables,
+                   category, is_active, created_at, updated_at
+
+-- Tags
+tags: id, tenant_id, name, color, created_at
+
+-- Contact Tags (junction)
+contact_tags: contact_id, tag_id
+
+================================================================================
+API ENDPOINTS (Core)
+================================================================================
+
+Auth:
+POST   /api/auth/login
+POST   /api/auth/register
+POST   /api/auth/refresh
+POST   /api/auth/logout
+
+Tenants:
+GET    /api/tenants/current
+PUT    /api/tenants/current
+GET    /api/tenants/current/settings
+
+Users:
+GET    /api/users
+POST   /api/users
+GET    /api/users/:id
+PUT    /api/users/:id
+DELETE /api/users/:id
+
+WhatsApp Sessions:
+GET    /api/sessions
+POST   /api/sessions
+GET    /api/sessions/:id
+PUT    /api/sessions/:id
+DELETE /api/sessions/:id
+POST   /api/sessions/:id/connect
+POST   /api/sessions/:id/disconnect
+GET    /api/sessions/:id/qr
+
+Contacts:
+GET    /api/contacts
+POST   /api/contacts
+GET    /api/contacts/:id
+PUT    /api/contacts/:id
+DELETE /api/contacts/:id
+POST   /api/contacts/:id/tags
+
+Conversations:
+GET    /api/conversations
+GET    /api/conversations/:id
+PUT    /api/conversations/:id
+POST   /api/conversations/:id/assign
+POST   /api/conversations/:id/close
+
+Messages:
+GET    /api/conversations/:id/messages
+POST   /api/conversations/:id/messages
+POST   /api/messages/send (direct send)
+
+Webhooks (Incoming from Evolution API):
+POST   /api/webhooks/whatsapp/:sessionId
+
+Webhooks (Outgoing management):
+GET    /api/webhooks/endpoints
+POST   /api/webhooks/endpoints
+PUT    /api/webhooks/endpoints/:id
+DELETE /api/webhooks/endpoints/:id
+GET    /api/webhooks/endpoints/:id/logs
+
+Integrations:
+GET    /api/integrations
+POST   /api/integrations/:type/connect
+DELETE /api/integrations/:type/disconnect
+
+API Keys:
+GET    /api/api-keys
+POST   /api/api-keys
+DELETE /api/api-keys/:id
+
+================================================================================
+WEBHOOK EVENTS (Outgoing to External Systems)
+================================================================================
+
+message.received      - New incoming message
+message.sent          - Outgoing message sent
+message.delivered     - Message delivered
+message.read          - Message read
+conversation.created  - New conversation started
+conversation.closed   - Conversation closed
+contact.created       - New contact created
+contact.updated       - Contact updated
+session.connected     - WhatsApp session connected
+session.disconnected  - WhatsApp session disconnected
+
+================================================================================
+INTEGRATION PATTERNS
+================================================================================
+
+n8n Integration:
+- Webhook endpoint for n8n to receive events
+- HTTP Request node to send messages via API
+- API key authentication
+
+Zapier Integration:
+- Webhook triggers for Zapier
+- REST API actions for Zapier
+- OAuth2 or API key auth
+
+GoHighLevel Integration:
+- Webhook delivery to GHL endpoints
+- Custom value mapping
+- Contact sync capabilities
+
+Make.com Integration:
+- Similar to n8n/Zapier
+- Webhook + API pattern
+
+================================================================================
+REAL-TIME EVENTS (Socket.IO)
+================================================================================
+
+Namespaces:
+- / (default): Dashboard events
+- /chat: Chat-specific events
+
+Events to Client:
+- new_message
+- message_status_update
+- typing_indicator
+- session_status_change
+- contact_update
+- conversation_update
+
+Events from Client:
+- join_conversation
+- leave_conversation
+- mark_read
+- typing_start
+- typing_stop
+
+================================================================================
+SECURITY CONSIDERATIONS
+================================================================================
+
+- JWT authentication with refresh tokens
+- API key authentication for external integrations
+- Multi-tenant data isolation (tenant_id on all queries)
+- PostgreSQL Row-Level Security (RLS)
+- HMAC webhook signature validation
+- Rate limiting per tenant/session
+- Encrypted WhatsApp credentials storage
+- Input validation and sanitization
+
+================================================================================
+RATE LIMITING
+================================================================================
+
+WhatsApp (per session):
+- Max 200-500 messages/day (conservative)
+- Delays between messages (1-3 seconds)
+- Gradual warm-up for new numbers
+
+API:
+- 100 requests/minute per API key
+- 1000 requests/minute per tenant
+
+================================================================================
+MESSAGE QUEUE (BullMQ)
+================================================================================
+
+Queues:
+- whatsapp-outbound: Outgoing messages to WhatsApp
+- webhook-delivery: Webhook delivery to external systems
+- media-processing: Media file processing
+
+Job Options:
+- Retry with exponential backoff
+- Dead letter queue for failures
+- Priority support
+
+================================================================================
+ITERATION PROGRESS TRACKING
+================================================================================
+
+See PROGRESS.md for detailed iteration-by-iteration progress.
+
+Current Status: IN PROGRESS
+Iterations Completed: 1
+Target: 100 iterations
+Completion: ~40%
+
+Last Iteration Summary (Iteration 1):
+- Created full monorepo structure with pnpm workspaces
+- Implemented complete NestJS backend (60+ files)
+- Created React frontend with all pages (25+ files)
+- Set up shared types package
+- Configured Docker for dev and production
+
+================================================================================
+KEY FILES TO REFERENCE
+================================================================================
+
+1. whatsapp_crm_research.txt - Full research document
+2. CONTEXT.txt - This file (project context)
+3. PROGRESS.md - Iteration progress
+4. apps/api/prisma/schema.prisma - Database schema
+5. apps/api/src/main.ts - API entry point
+6. apps/web/src/App.tsx - Frontend entry point
+7. docker/docker-compose.yml - Docker configuration
+
+================================================================================
+COMPLETION CRITERIA
+================================================================================
+
+The project is complete when:
+1. Full NestJS API with all modules implemented
+2. Prisma schema with all entities
+3. React frontend with chat UI
+4. Docker Compose setup for all services
+5. Evolution API integration working
+6. Webhook system (incoming + outgoing)
+7. Socket.IO real-time updates
+8. Multi-tenant isolation
+9. API key management
+10. Message queue system
+11. All documented in PROGRESS.md
+
+================================================================================
+                           END OF CONTEXT DOCUMENT
+================================================================================

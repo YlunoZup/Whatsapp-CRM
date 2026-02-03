@@ -1,0 +1,283 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Premium Light Theme */
+    --background: 0 0% 98%;
+    --foreground: 220 13% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 13%;
+    --primary: 158 64% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 13% 95%;
+    --secondary-foreground: 220 13% 26%;
+    --muted: 220 13% 95%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 220 13% 95%;
+    --accent-foreground: 220 13% 26%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 158 64% 40%;
+    --radius: 0.75rem;
+
+    /* WhatsApp specific */
+    --wa-bg-chat: 220 14% 96%;
+    --wa-bg-panel: 220 13% 98%;
+    --wa-outgoing: 158 55% 92%;
+    --wa-incoming: 0 0% 100%;
+  }
+
+  .dark {
+    /* Premium Dark Theme - Deep, rich, and sophisticated */
+    --background: 220 20% 6%;
+    --foreground: 220 13% 93%;
+    --card: 220 18% 9%;
+    --card-foreground: 220 13% 93%;
+    --popover: 220 18% 9%;
+    --popover-foreground: 220 13% 93%;
+    --primary: 158 60% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 15% 13%;
+    --secondary-foreground: 220 13% 80%;
+    --muted: 220 15% 13%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 220 15% 15%;
+    --accent-foreground: 220 13% 93%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 14%;
+    --input: 220 15% 14%;
+    --ring: 158 60% 42%;
+
+    /* WhatsApp specific dark */
+    --wa-bg-chat: 220 20% 5%;
+    --wa-bg-panel: 220 18% 8%;
+    --wa-outgoing: 158 80% 22%;
+    --wa-incoming: 220 18% 12%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Premium heading styles */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  /* Monospace font for code/data */
+  code, pre, .font-mono {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+  }
+}
+
+/* Premium scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 100px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.35);
+  background-clip: padding-box;
+}
+
+/* Selection styling */
+::selection {
+  background: hsl(var(--primary) / 0.25);
+  color: hsl(var(--foreground));
+}
+
+/* Focus visible outline */
+:focus-visible {
+  @apply outline-none ring-2 ring-primary/50 ring-offset-2 ring-offset-background;
+}
+
+/* Glass morphism utility */
+@layer utilities {
+  .glass {
+    @apply bg-card/80 backdrop-blur-xl border-white/5;
+  }
+
+  .glass-subtle {
+    @apply bg-card/60 backdrop-blur-md;
+  }
+
+  /* Gradient text - using single primary color */
+  .gradient-text {
+    @apply text-primary;
+  }
+
+  /* Premium shadows */
+  .shadow-glow {
+    box-shadow: 0 0 40px -10px hsl(var(--primary) / 0.3);
+  }
+
+  .shadow-premium {
+    box-shadow:
+      0 1px 2px hsl(var(--foreground) / 0.03),
+      0 4px 8px hsl(var(--foreground) / 0.04),
+      0 12px 24px hsl(var(--foreground) / 0.05);
+  }
+
+  .shadow-premium-lg {
+    box-shadow:
+      0 2px 4px hsl(var(--foreground) / 0.02),
+      0 8px 16px hsl(var(--foreground) / 0.04),
+      0 24px 48px hsl(var(--foreground) / 0.06);
+  }
+
+  /* Noise texture overlay */
+  .noise {
+    position: relative;
+  }
+
+  .noise::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.02;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  /* Subtle border glow on hover */
+  .border-glow {
+    position: relative;
+  }
+
+  .border-glow::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.2), transparent 50%, hsl(var(--primary) / 0.1));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .border-glow:hover::after {
+    opacity: 1;
+  }
+
+  /* Smooth page transitions */
+  .page-enter {
+    animation: pageEnter 0.4s ease-out;
+  }
+
+  @keyframes pageEnter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Stagger animation delays */
+  .stagger-1 { animation-delay: 50ms; }
+  .stagger-2 { animation-delay: 100ms; }
+  .stagger-3 { animation-delay: 150ms; }
+  .stagger-4 { animation-delay: 200ms; }
+  .stagger-5 { animation-delay: 250ms; }
+  .stagger-6 { animation-delay: 300ms; }
+}
+
+/* Premium button base */
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5
+           bg-primary text-primary-foreground font-medium rounded-xl
+           transition-all duration-200 ease-out
+           hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25
+           active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5
+           bg-secondary text-secondary-foreground font-medium rounded-xl
+           border border-border transition-all duration-200 ease-out
+           hover:bg-accent hover:border-border/80
+           active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2
+           text-muted-foreground font-medium rounded-xl
+           transition-all duration-200 ease-out
+           hover:bg-accent hover:text-foreground
+           active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  /* Premium input */
+  .input-premium {
+    @apply w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl
+           text-foreground placeholder:text-muted-foreground/60
+           transition-all duration-200 ease-out
+           focus:outline-none focus:bg-background focus:border-primary/50 focus:ring-4 focus:ring-primary/10;
+  }
+
+  /* Premium card */
+  .card-premium {
+    @apply bg-card rounded-2xl border border-border/50 shadow-premium
+           transition-all duration-300 ease-out
+           hover:border-border hover:shadow-premium-lg;
+  }
+
+  /* Navigation item */
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+           text-muted-foreground transition-all duration-200 ease-out
+           hover:bg-accent hover:text-foreground;
+  }
+
+  .nav-item-active {
+    @apply bg-primary/10 text-primary;
+  }
+}
+
+/* Smooth transitions for theme changes */
+html.transitioning,
+html.transitioning *,
+html.transitioning *::before,
+html.transitioning *::after {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease !important;
+}

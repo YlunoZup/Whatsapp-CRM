@@ -1,0 +1,51 @@
+{
+  "name": "whatsapp-crm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WhatsApp CRM with multi-account support and API integrations",
+  "keywords": ["whatsapp", "crm", "multi-tenant", "nestjs", "react"],
+  "license": "MIT",
+  "author": "WhatsApp CRM Team",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "dev:api": "pnpm --filter @whatsapp-crm/api dev",
+    "dev:web": "pnpm --filter @whatsapp-crm/web dev",
+    "lint": "pnpm -r lint",
+    "lint:fix": "pnpm -r lint:fix",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm -r test:e2e",
+    "db:generate": "pnpm --filter @whatsapp-crm/api prisma:generate",
+    "db:migrate": "pnpm --filter @whatsapp-crm/api prisma:migrate",
+    "db:push": "pnpm --filter @whatsapp-crm/api prisma:push",
+    "db:seed": "pnpm --filter @whatsapp-crm/api prisma:seed",
+    "db:studio": "pnpm --filter @whatsapp-crm/api prisma:studio",
+    "docker:up": "docker-compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker-compose -f docker/docker-compose.yml down",
+    "docker:dev": "docker-compose -f docker/docker-compose.dev.yml up -d",
+    "clean": "pnpm -r clean && rimraf node_modules",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.0",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}

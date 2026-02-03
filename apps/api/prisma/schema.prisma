@@ -1,0 +1,494 @@
+// Prisma schema for WhatsApp CRM
+// Multi-tenant architecture with complete CRM features
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// TENANT & USER MANAGEMENT
+// ============================================
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  settings  Json     @default("{}")
+  plan      String   @default("free")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  users             User[]
+  whatsappSessions  WhatsappSession[]
+  contacts          Contact[]
+  conversations     Conversation[]
+  tags              Tag[]
+  webhookEndpoints  WebhookEndpoint[]
+  apiKeys           ApiKey[]
+  messageTemplates  MessageTemplate[]
+  auditLogs         AuditLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  tenantId     String    @map("tenant_id")
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  role         String    @default("member")
+  avatarUrl    String?   @map("avatar_url")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  tenant              Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedConversations Conversation[] @relation("AssignedUser")
+  reactions           MessageReaction[]
+  auditLogs           AuditLog[]
+
+  @@index([tenantId])
+  @@index([email])
+  @@map("users")
+}
+
+// ============================================
+// WHATSAPP SESSIONS
+// ============================================
+
+model WhatsappSession {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  name            String
+  phoneNumber     String?   @map("phone_number")
+  status          String    @default("disconnected")
+  qrCode          String?   @map("qr_code") @db.Text
+  credentials     Json?
+  webhookUrl      String?   @map("webhook_url")
+  settings        Json      @default("{}")
+  lastConnectedAt DateTime? @map("last_connected_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations    Conversation[]
+  assignedContacts Contact[]      // Contacts that are locked to this session
+  logs             SessionLog[]   // Session activity logs
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("whatsapp_sessions")
+}
+
+// Session activity logs for debugging and monitoring
+model SessionLog {
+  id        String   @id @default(uuid())
+  sessionId String   @map("session_id")
+  level     String   @default("info") // info, warning, error, debug
+  event     String   // connected, disconnected, qr_generated, message_sent, message_received, error, etc.
+  message   String   @db.Text
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  session WhatsappSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([level])
+  @@index([event])
+  @@index([createdAt])
+  @@map("session_logs")
+}
+
+// ============================================
+// CONTACTS & TAGS
+// ============================================
+
+model Contact {
+  id                String   @id @default(uuid())
+  tenantId          String   @map("tenant_id")
+  whatsappId        String?  @map("whatsapp_id")
+  phone             String
+  name              String?
+  email             String?
+  avatarUrl         String?  @map("avatar_url")
+  // Lead Pipeline Status
+  status            String   @default("new") // new, contacted, interested, not_interested, closed_won, closed_lost
+  statusChangedAt   DateTime? @map("status_changed_at") // When status was last changed
+  assignedSessionId String?  @map("assigned_session_id") // Session that first contacted this contact - only this session can message them
+  sessionLockedAt   DateTime? @map("session_locked_at") // When the session binding was established
+  // Presence tracking
+  isOnline          Boolean  @default(false) @map("is_online")
+  lastSeenAt        DateTime? @map("last_seen_at")
+  lastPresence      String?  @map("last_presence") // available, composing, recording, paused, unavailable
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedSession WhatsappSession? @relation(fields: [assignedSessionId], references: [id], onDelete: SetNull)
+  tags            ContactTag[]
+  conversations   Conversation[]
+
+  @@unique([tenantId, phone])
+  @@unique([tenantId, whatsappId])
+  @@index([tenantId])
+  @@index([phone])
+  @@index([whatsappId])
+  @@index([assignedSessionId])
+  @@index([status])
+  @@map("contacts")
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  color     String   @default("#6366f1")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contacts ContactTag[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("tags")
+}
+
+model ContactTag {
+  contactId String @map("contact_id")
+  tagId     String @map("tag_id")
+
+  // Relations
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+  @@map("contact_tags")
+}
+
+// ============================================
+// CONVERSATIONS & MESSAGES
+// ============================================
+
+model Conversation {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id")
+  sessionId     String    @map("session_id")
+  contactId     String    @map("contact_id")
+  status        String    @default("open")
+  priority      String    @default("normal") // low, normal, high, urgent
+  label         String?   // custom label/category
+  assignedTo    String?   @map("assigned_to")
+  lastMessageAt DateTime? @map("last_message_at")
+  unreadCount   Int       @default(0) @map("unread_count")
+  metadata      Json      @default("{}")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session      WhatsappSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  contact      Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assignedUser User?           @relation("AssignedUser", fields: [assignedTo], references: [id], onDelete: SetNull)
+  messages     Message[]
+
+  @@unique([sessionId, contactId])
+  @@index([tenantId])
+  @@index([sessionId])
+  @@index([contactId])
+  @@index([status])
+  @@index([priority])
+  @@index([label])
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model Message {
+  id                String   @id @default(uuid())
+  tenantId          String   @map("tenant_id")
+  conversationId    String   @map("conversation_id")
+  whatsappMessageId String?  @map("whatsapp_message_id")
+  direction         String   // inbound, outbound
+  type              String   @default("text")
+  content           String?  @db.Text
+  mediaUrl          String?  @map("media_url")
+  status            String   @default("pending")
+  // Message status timestamps
+  deliveredAt       DateTime? @map("delivered_at")
+  readAt            DateTime? @map("read_at")
+  isStarred         Boolean  @default(false) @map("is_starred")
+  starredAt         DateTime? @map("starred_at")
+  metadata          Json     @default("{}")
+  sequenceNumber    BigInt?  @map("sequence_number")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  reactions    MessageReaction[]
+
+  @@index([tenantId])
+  @@index([conversationId])
+  @@index([whatsappMessageId])
+  @@index([createdAt])
+  @@index([status])
+  @@map("messages")
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  userId    String?  @map("user_id")
+  emoji     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@index([userId])
+  @@map("message_reactions")
+}
+
+// ============================================
+// WEBHOOKS
+// ============================================
+
+model WebhookEndpoint {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  name            String
+  url             String
+  events          String[]
+  secret          String?
+  isActive        Boolean   @default(true) @map("is_active")
+  lastTriggeredAt DateTime? @map("last_triggered_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  logs   WebhookLog[]
+
+  @@index([tenantId])
+  @@index([isActive])
+  @@map("webhook_endpoints")
+}
+
+model WebhookLog {
+  id             String   @id @default(uuid())
+  endpointId     String   @map("endpoint_id")
+  event          String
+  payload        Json
+  responseStatus Int      @map("response_status")
+  responseBody   String?  @map("response_body") @db.Text
+  attempts       Int      @default(1)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId])
+  @@index([createdAt])
+  @@map("webhook_logs")
+}
+
+// ============================================
+// API KEYS
+// ============================================
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  name        String
+  keyHash     String    @map("key_hash")
+  permissions String[]
+  lastUsedAt  DateTime? @map("last_used_at")
+  expiresAt   DateTime? @map("expires_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+// ============================================
+// MESSAGE TEMPLATES
+// ============================================
+
+model MessageTemplate {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  content   String   @db.Text
+  variables String[]
+  category  String   @default("general")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([category])
+  @@map("message_templates")
+}
+
+// ============================================
+// BROADCASTS
+// ============================================
+
+model Broadcast {
+  id           String    @id @default(uuid())
+  tenantId     String    @map("tenant_id")
+  sessionId    String    @map("session_id")
+  name         String
+  content      String    @db.Text
+  type         String    @default("text")
+  mediaUrl     String?   @map("media_url")
+  status       String    @default("pending") // pending, processing, completed, failed, cancelled
+  totalCount   Int       @default(0) @map("total_count")
+  sentCount    Int       @default(0) @map("sent_count")
+  failedCount  Int       @default(0) @map("failed_count")
+  scheduledAt  DateTime? @map("scheduled_at")
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  recipients BroadcastRecipient[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("broadcasts")
+}
+
+model BroadcastRecipient {
+  id          String    @id @default(uuid())
+  broadcastId String    @map("broadcast_id")
+  contactId   String    @map("contact_id")
+  phone       String
+  status      String    @default("pending") // pending, sent, delivered, read, failed
+  error       String?
+  sentAt      DateTime? @map("sent_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+
+  @@index([broadcastId])
+  @@index([status])
+  @@map("broadcast_recipients")
+}
+
+// ============================================
+// CONTACT NOTES & ACTIVITY
+// ============================================
+
+model ContactNote {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  contactId String   @map("contact_id")
+  userId    String   @map("user_id")
+  content   String   @db.Text
+  isPinned  Boolean  @default(false) @map("is_pinned")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([contactId])
+  @@index([userId])
+  @@map("contact_notes")
+}
+
+model ContactActivity {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  contactId  String   @map("contact_id")
+  userId     String?  @map("user_id")
+  type       String   // created, updated, tagged, untagged, note_added, conversation_opened, conversation_closed, assigned, message_sent, message_received
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([contactId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("contact_activities")
+}
+
+// ============================================
+// SCHEDULED MESSAGES
+// ============================================
+
+model ScheduledMessage {
+  id             String    @id @default(uuid())
+  tenantId       String    @map("tenant_id")
+  sessionId      String    @map("session_id")
+  conversationId String?   @map("conversation_id")
+  contactPhone   String    @map("contact_phone")
+  type           String    @default("text")
+  content        String    @db.Text
+  mediaUrl       String?   @map("media_url")
+  scheduledFor   DateTime  @map("scheduled_for")
+  status         String    @default("pending") // pending, sent, failed, cancelled
+  error          String?
+  sentAt         DateTime? @map("sent_at")
+  createdBy      String    @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([sessionId])
+  @@index([scheduledFor])
+  @@index([status])
+  @@map("scheduled_messages")
+}
+
+// ============================================
+// AUDIT LOGGING
+// ============================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  userId     String?  @map("user_id")
+  action     String
+  resource   String
+  resourceId String?  @map("resource_id")
+  metadata   Json     @default("{}")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
