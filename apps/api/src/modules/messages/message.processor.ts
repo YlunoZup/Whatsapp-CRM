@@ -637,129 +637,148 @@ export class MessageProcessor implements OnModuleInit {
         }
       }
 
-      // Find or create conversation
-      let conversation = await this.prisma.conversation.findFirst({
-        where: {
-          tenantId: session.tenantId,
-          contactId: contact.id,
-          sessionId: session.id,
-        },
-      });
+      // Use transaction for conversation and message creation
+      // This ensures atomicity: either both succeed or both fail
+      try {
+        const result = await this.prisma.$transaction(async (tx) => {
+          // Find or create conversation within transaction
+          let conversation = await tx.conversation.findFirst({
+            where: {
+              tenantId: session.tenantId,
+              contactId: contact.id,
+              sessionId: session.id,
+            },
+          });
 
-      if (!conversation) {
-        // Create new conversation
-        conversation = await this.prisma.conversation.create({
-          data: {
-            tenantId: session.tenantId,
-            sessionId: session.id,
-            contactId: contact.id,
-            status: 'open',
-          },
+          if (!conversation) {
+            // Create new conversation
+            conversation = await tx.conversation.create({
+              data: {
+                tenantId: session.tenantId,
+                sessionId: session.id,
+                contactId: contact.id,
+                status: 'open',
+              },
+            });
+            this.logger.log(`Created new conversation: ${conversation.id}`);
+          }
+
+          // Check if message already exists (by whatsappMessageId)
+          const existingMessage = await tx.message.findFirst({
+            where: {
+              whatsappMessageId: msg.messageId,
+            },
+          });
+
+          if (existingMessage) {
+            this.logger.debug(`Message already exists: ${msg.messageId}`);
+            return null; // Signal that message was not created
+          }
+
+          // Generate content hash for additional deduplication safety
+          const contentHash = this.contentHash.generateHash(
+            msg.content || '',
+            msg.type,
+            msg.remoteJid,
+            msg.timestamp,
+          );
+
+          // Additional deduplication: check for identical content from same sender within 5-second window
+          const existingContentHash = await tx.message.findFirst({
+            where: {
+              tenantId: session.tenantId,
+              conversationId: conversation.id,
+              contentHash,
+              createdAt: {
+                gte: new Date((msg.timestamp - 5) * 1000),
+                lte: new Date((msg.timestamp + 5) * 1000),
+              },
+            },
+          });
+
+          if (existingContentHash) {
+            this.logger.debug(
+              `Message deduplicated by content hash: ${contentHash} (timestamp window: ${msg.timestamp - 5} - ${msg.timestamp + 5})`,
+            );
+            return null; // Signal that message was not created
+          }
+
+          // Create the message within transaction
+          const message = await tx.message.create({
+            data: {
+              tenantId: session.tenantId,
+              conversationId: conversation.id,
+              whatsappMessageId: msg.messageId,
+              contentHash,
+              direction: 'inbound',
+              type: msg.type,
+              content: msg.content || '',
+              mediaUrl: msg.mediaUrl,
+              status: 'received',
+              createdAt: new Date(msg.timestamp * 1000),
+            } as any,
+          });
+
+          this.logger.log(`Created incoming message: ${message.id} in conversation: ${conversation.id}`);
+
+          // Update conversation last message time within transaction
+          await tx.conversation.update({
+            where: { id: conversation.id },
+            data: {
+              lastMessageAt: new Date(),
+              unreadCount: { increment: 1 },
+              status: 'open', // Reopen if closed
+            },
+          });
+
+          return { message, conversation };
         });
-        this.logger.log(`Created new conversation: ${conversation.id}`);
-      }
 
-      // Check if message already exists (by whatsappMessageId)
-      const existingMessage = await this.prisma.message.findFirst({
-        where: {
-          whatsappMessageId: msg.messageId,
-        },
-      });
+        // If transaction returned null (duplicate detected), exit early
+        if (!result) {
+          return;
+        }
 
-      if (existingMessage) {
-        this.logger.debug(`Message already exists: ${msg.messageId}`);
-        return;
-      }
+        const { message, conversation } = result;
 
-      // Generate content hash for additional deduplication safety
-      const contentHash = this.contentHash.generateHash(
-        msg.content || '',
-        msg.type,
-        msg.remoteJid,
-        msg.timestamp,
-      );
-
-      // Additional deduplication: check for identical content from same sender within 5-second window
-      const existingContentHash = await this.prisma.message.findFirst({
-        where: {
-          tenantId: session.tenantId,
+        // Prepare message data for socket events
+        const messageData = {
           conversationId: conversation.id,
-          contentHash,
-          createdAt: {
-            gte: new Date((msg.timestamp - 5) * 1000),
-            lte: new Date((msg.timestamp + 5) * 1000),
+          message: {
+            id: message.id,
+            content: message.content || '',
+            type: message.type,
+            direction: message.direction,
+            status: message.status,
+            createdAt: message.createdAt,
           },
-        },
-      });
+        };
 
-      if (existingContentHash) {
-        this.logger.debug(
-          `Message deduplicated by content hash: ${contentHash} (timestamp window: ${msg.timestamp - 5} - ${msg.timestamp + 5})`,
-        );
-        return;
-      }
+        // Emit to conversation room (for clients viewing this conversation)
+        this.socketService.emitNewMessage(conversation.id, messageData);
 
-      // Create the message
-      const message = await this.prisma.message.create({
-        data: {
-          tenantId: session.tenantId,
+        // Emit to tenant room (for all clients in the tenant - ensures immediate updates)
+        this.socketService.emitNewMessageToTenant(session.tenantId, messageData);
+
+        // Also emit conversation update to tenant room for conversation list updates
+        this.socketService.emitConversationUpdate(session.tenantId, {
           conversationId: conversation.id,
-          whatsappMessageId: msg.messageId,
-          contentHash,
-          direction: 'inbound',
-          type: msg.type,
-          content: msg.content || '',
-          mediaUrl: msg.mediaUrl,
-          status: 'received',
-          createdAt: new Date(msg.timestamp * 1000),
-        } as any,
-      });
-
-      this.logger.log(`Created incoming message: ${message.id} in conversation: ${conversation.id}`);
-
-      // Update conversation last message time
-      await this.prisma.conversation.update({
-        where: { id: conversation.id },
-        data: {
-          lastMessageAt: new Date(),
-          unreadCount: { increment: 1 },
-          status: 'open', // Reopen if closed
-        },
-      });
-
-      // Prepare message data for socket events
-      const messageData = {
-        conversationId: conversation.id,
-        message: {
-          id: message.id,
-          content: message.content || '',
-          type: message.type,
-          direction: message.direction,
-          status: message.status,
-          createdAt: message.createdAt,
-        },
-      };
-
-      // Emit to conversation room (for clients viewing this conversation)
-      this.socketService.emitNewMessage(conversation.id, messageData);
-
-      // Emit to tenant room (for all clients in the tenant - ensures immediate updates)
-      this.socketService.emitNewMessageToTenant(session.tenantId, messageData);
-
-      // Also emit conversation update to tenant room for conversation list updates
-      this.socketService.emitConversationUpdate(session.tenantId, {
-        conversationId: conversation.id,
-        lastMessage: {
-          content: message.content || '',
-          type: message.type,
-          createdAt: message.createdAt,
-        },
-        unreadCount: conversation.unreadCount + 1,
-      });
-
+          lastMessage: {
+            content: message.content || '',
+            type: message.type,
+            createdAt: message.createdAt,
+          },
+          unreadCount: conversation.unreadCount + 1,
+        });
+      } catch (error) {
+        this.logger.error(
+          `Error processing incoming message: ${error instanceof Error ? error.message : error}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      }
     } catch (error) {
       this.logger.error(
-        `Error processing incoming message: ${error instanceof Error ? error.message : error}`,
+        `Error processing incoming message (outer): ${error instanceof Error ? error.message : error}`,
         error instanceof Error ? error.stack : undefined,
       );
     }
