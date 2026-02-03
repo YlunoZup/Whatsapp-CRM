@@ -82,3 +82,4 @@ postgres-data/
 *.local.md
 
 .vercel
+apps/api/.whatsapp-sessions/
