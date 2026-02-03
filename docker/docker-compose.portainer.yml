@@ -22,8 +22,8 @@ services:
         cd /app &&
         pnpm install --filter @whatsapp-crm/api... --ignore-scripts &&
         cd /app/apps/api &&
-        npx prisma generate &&
-        npx prisma db push --accept-data-loss &&
+        ./node_modules/.bin/prisma generate &&
+        ./node_modules/.bin/prisma db push --accept-data-loss &&
         pnpm run build &&
         node dist/main.js
       "
