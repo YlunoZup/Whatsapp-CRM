@@ -1,9 +1,0 @@
-{
-  "buildCommand": "pnpm --filter @whatsapp-crm/web build",
-  "outputDirectory": "apps/web/dist",
-  "framework": "vite",
-  "installCommand": "pnpm install",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}
