@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/auth-store';
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
+// Use Vercel serverless proxy in production, direct API in development
+const API_BASE = '/api/v1';
 
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
