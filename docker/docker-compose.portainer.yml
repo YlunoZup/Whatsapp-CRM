@@ -1,46 +1,40 @@
 version: '3.8'
 
 # WhatsApp CRM API - Portainer Deployment
-# Uses external NeonDB (Postgres) and Upstash (Redis)
-# Frontend is deployed on Vercel
+# Uses Node.js base image with npm install at runtime
 
 services:
   api:
-    image: ghcr.io/ylunozup/whatsapp-crm-api:latest
-    build:
-      context: ../
-      dockerfile: docker/Dockerfile.api
+    image: node:20-alpine
     container_name: whatsapp-crm-api
     restart: unless-stopped
+    working_dir: /app
+    command: sh -c "apk add --no-cache python3 make g++ git && git clone --depth 1 https://github.com/YlunoZup/Whatsapp-CRM.git . && cd apps/api && npm install --legacy-peer-deps && npx prisma generate && npx prisma db push --accept-data-loss && npm run build && node dist/main.js"
     environment:
       - NODE_ENV=production
       - PORT=3001
-      # Database (NeonDB)
       - DATABASE_URL=${DATABASE_URL}
-      # Redis (Upstash)
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_TLS=${REDIS_TLS}
-      # JWT
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN}
-      # CORS - Vercel frontend
       - CORS_ORIGIN=${CORS_ORIGIN}
-      # Encryption
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
     volumes:
       - whatsapp_sessions:/app/apps/api/.whatsapp-sessions
+      - api_node_modules:/app/apps/api/node_modules
     ports:
       - "3001:3001"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
-      interval: 30s
-      timeout: 10s
-      start_period: 60s
-      retries: 3
+      interval: 60s
+      timeout: 30s
+      start_period: 300s
+      retries: 5
     networks:
       - whatsapp-crm-net
 
@@ -50,4 +44,6 @@ networks:
 
 volumes:
   whatsapp_sessions:
+    driver: local
+  api_node_modules:
     driver: local
