@@ -20,10 +20,10 @@ services:
           rm -rf /tmp/repo
         fi &&
         cd /app &&
-        HUSKY=0 pnpm install --filter @whatsapp-crm/api... &&
+        NODE_ENV=development HUSKY=0 pnpm install --filter @whatsapp-crm/api... &&
         cd /app/apps/api &&
-        pnpm --filter @whatsapp-crm/api exec prisma generate &&
-        pnpm --filter @whatsapp-crm/api exec prisma db push --accept-data-loss &&
+        pnpm run prisma:generate &&
+        pnpm run prisma:push -- --accept-data-loss &&
         pnpm run build &&
         node dist/main.js
       "
