@@ -377,10 +377,24 @@ export class MessageProcessor implements OnModuleInit {
     const releaseLock = await this.acquireMessageLock(msg.sessionId, msg.messageId);
 
     try {
-      // Skip messages sent by us (fromMe = true)
-      if (msg.fromMe) {
-        this.logger.debug(`Skipping outgoing message: ${msg.messageId}`);
+      // Skip real-time outbound messages (they're already stored via the CRM send flow)
+      // But process history sync fromMe messages - these are outbound messages
+      // sent from WhatsApp Web/phone during the offline period
+      if (msg.fromMe && !msg.isHistorySync) {
+        this.logger.debug(`Skipping real-time outgoing message: ${msg.messageId}`);
         return;
+      }
+
+      // For history sync fromMe messages, check if already stored (sent via CRM while online)
+      if (msg.fromMe) {
+        const existing = await this.prisma.message.findFirst({
+          where: { whatsappMessageId: msg.messageId },
+        });
+        if (existing) {
+          this.logger.debug(`Skipping already-stored fromMe message: ${msg.messageId}`);
+          return;
+        }
+        this.logger.log(`Processing history sync fromMe message: ${msg.messageId}`);
       }
 
       // Get session to find tenant
@@ -621,7 +635,7 @@ export class MessageProcessor implements OnModuleInit {
             tenantId: session.tenantId,
             phone: contactPhone,
             whatsappId: msg.remoteJid,
-            name: msg.pushName || (isLidFormat ? 'Unknown' : normalizedPhone),
+            name: (!msg.fromMe && msg.pushName) ? msg.pushName : (isLidFormat ? 'Unknown' : normalizedPhone),
             metadata: needsReview ? { needsReview: true, reason: 'unmatched_lid_no_alt', createdFrom: msg.remoteJid } : undefined,
           },
         });
@@ -642,7 +656,8 @@ export class MessageProcessor implements OnModuleInit {
         }
 
         // Update name from pushName if current name is default/missing
-        if (msg.pushName && (contact.name === contact.phone || !contact.name || contact.name === 'Unknown')) {
+        // Skip for fromMe messages - pushName would be our own name, not the contact's
+        if (!msg.fromMe && msg.pushName && (contact.name === contact.phone || !contact.name || contact.name === 'Unknown')) {
           updates.name = msg.pushName;
           this.logger.log(`Updated contact name to: ${msg.pushName}`);
         }
@@ -658,8 +673,9 @@ export class MessageProcessor implements OnModuleInit {
 
         // Sync additional contact metadata from message
         // This captures name, presence, and other info from WhatsApp
+        // Skip pushName sync for fromMe messages (it's our own name, not the contact's)
         await this.contactSync.syncContactMetadata(session.tenantId, contact.id, {
-          pushName: msg.pushName,
+          pushName: msg.fromMe ? undefined : msg.pushName,
           whatsappId: msg.remoteJid,
         });
 
@@ -745,25 +761,29 @@ export class MessageProcessor implements OnModuleInit {
               conversationId: conversation.id,
               whatsappMessageId: msg.messageId,
               contentHash,
-              direction: 'inbound',
+              direction: msg.fromMe ? 'outbound' : 'inbound',
               type: msg.type,
               content: msg.content || '',
               mediaUrl: msg.mediaUrl,
-              status: 'received',
+              status: msg.fromMe ? 'sent' : 'received',
               createdAt: new Date(msg.timestamp * 1000),
             } as any,
           });
 
-          this.logger.log(`Created incoming message: ${message.id} in conversation: ${conversation.id}`);
+          this.logger.log(`Created ${msg.fromMe ? 'history-sync outbound' : 'incoming'} message: ${message.id} in conversation: ${conversation.id}`);
 
           // Update conversation last message time within transaction
+          const conversationUpdate: any = {
+            lastMessageAt: new Date(msg.timestamp * 1000),
+            status: 'open', // Reopen if closed
+          };
+          // Only increment unread count for inbound messages (not our own sent messages)
+          if (!msg.fromMe) {
+            conversationUpdate.unreadCount = { increment: 1 };
+          }
           await tx.conversation.update({
             where: { id: conversation.id },
-            data: {
-              lastMessageAt: new Date(),
-              unreadCount: { increment: 1 },
-              status: 'open', // Reopen if closed
-            },
+            data: conversationUpdate,
           });
 
           return { message, conversation };
@@ -803,7 +823,7 @@ export class MessageProcessor implements OnModuleInit {
             type: message.type,
             createdAt: message.createdAt,
           },
-          unreadCount: conversation.unreadCount + 1,
+          unreadCount: msg.fromMe ? conversation.unreadCount : conversation.unreadCount + 1,
         });
       } catch (error) {
         this.logger.error(

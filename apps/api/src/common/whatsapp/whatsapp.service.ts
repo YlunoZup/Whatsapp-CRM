@@ -16,6 +16,7 @@ import pino from 'pino';
 import { MessageBufferService } from './message-buffer.service';
 import { LidMappingService } from './lid-mapping.service';
 import { ContentHashService } from './content-hash.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 export interface WhatsAppConnection {
   socket: WASocket | null;
@@ -36,6 +37,7 @@ export interface IncomingMessage {
   mediaUrl?: string;
   pushName?: string;
   senderPn?: string; // Phone number if available (resolved from LID or remoteJidAlt)
+  isHistorySync?: boolean; // True if message came from history sync (offline period)
 }
 
 // LID to Phone Number mapping
@@ -103,6 +105,7 @@ export class WhatsAppService implements OnModuleDestroy {
     private messageBuffer: MessageBufferService,
     private lidMapping: LidMappingService,
     private contentHash: ContentHashService,
+    private prisma: PrismaService,
   ) {
     this.authDir = path.join(process.cwd(), '.whatsapp-sessions');
     if (!fs.existsSync(this.authDir)) {
@@ -342,11 +345,20 @@ export class WhatsAppService implements OnModuleDestroy {
         generateHighQualityLinkPreview: true,
         // Receive notifications for messages like WhatsApp Web
         getMessage: async (key) => {
-          // CRITICAL FIX: Return undefined when message not found
-          // Returning { conversation: '' } caused blank messages to appear
-          // during session initialization (WhatsApp sends ~6 retry/poll requests)
-          // Returning undefined tells Baileys there's no cached message,
-          // so it won't create fake empty messages
+          // Look up previously stored messages from the database
+          // This helps Baileys handle message retries/decryption during reconnection
+          try {
+            if (!key.id) return undefined;
+            const msg = await this.prisma.message.findFirst({
+              where: { whatsappMessageId: key.id },
+              select: { content: true, type: true },
+            });
+            if (msg?.content && msg.type === 'text') {
+              return { conversation: msg.content };
+            }
+          } catch (err) {
+            this.logger.debug(`getMessage lookup failed: ${err}`);
+          }
           return undefined;
         },
       });
@@ -580,6 +592,7 @@ export class WhatsAppService implements OnModuleDestroy {
               mediaUrl,
               pushName,
               senderPn,
+              isHistorySync,
             });
           } catch (err) {
             this.logger.error(`Error processing message: ${err}`);
@@ -790,6 +803,7 @@ export class WhatsAppService implements OnModuleDestroy {
                   mediaUrl: undefined,
                   pushName,
                   senderPn,
+                  isHistorySync: true,
                 });
               } catch (msgErr) {
                 this.logger.error(`Error processing history message: ${msgErr}`);
@@ -878,6 +892,7 @@ export class WhatsAppService implements OnModuleDestroy {
                       mediaUrl: undefined,
                       pushName,
                       senderPn,
+                      isHistorySync: true,
                     });
                   } catch (msgErr) {
                     this.logger.error(`Error processing chat history message: ${msgErr}`);
