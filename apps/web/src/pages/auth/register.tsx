@@ -17,9 +17,28 @@ export function RegisterPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Password validation helper
+  const validatePassword = (pwd: string) => {
+    const hasLowercase = /[a-z]/.test(pwd);
+    const hasUppercase = /[A-Z]/.test(pwd);
+    const hasNumber = /\d/.test(pwd);
+    const hasSpecial = /[@$!%*?&]/.test(pwd);
+    const hasMinLength = pwd.length >= 8;
+    return { hasLowercase, hasUppercase, hasNumber, hasSpecial, hasMinLength };
+  };
+
+  const passwordChecks = validatePassword(password);
+  const isPasswordValid = Object.values(passwordChecks).every(Boolean);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Validate password requirements
+    if (!isPasswordValid) {
+      setError('Password does not meet all requirements');
+      return;
+    }
 
     // Validate passwords match
     if (password !== confirmPassword) {
@@ -143,7 +162,26 @@ export function RegisterPage() {
                   )}
                 </button>
               </div>
-              <p className="text-xs text-[#667781] dark:text-[#8696A0] mt-1.5">Minimum 8 characters</p>
+              <div className="mt-2 space-y-1">
+                <p className="text-xs text-[#667781] dark:text-[#8696A0] font-medium">Password requirements:</p>
+                <ul className="text-xs space-y-0.5">
+                  <li className={passwordChecks.hasMinLength ? 'text-green-600 dark:text-green-400' : 'text-[#667781] dark:text-[#8696A0]'}>
+                    {passwordChecks.hasMinLength ? '\u2713' : '\u2022'} At least 8 characters
+                  </li>
+                  <li className={passwordChecks.hasUppercase ? 'text-green-600 dark:text-green-400' : 'text-[#667781] dark:text-[#8696A0]'}>
+                    {passwordChecks.hasUppercase ? '\u2713' : '\u2022'} One uppercase letter (A-Z)
+                  </li>
+                  <li className={passwordChecks.hasLowercase ? 'text-green-600 dark:text-green-400' : 'text-[#667781] dark:text-[#8696A0]'}>
+                    {passwordChecks.hasLowercase ? '\u2713' : '\u2022'} One lowercase letter (a-z)
+                  </li>
+                  <li className={passwordChecks.hasNumber ? 'text-green-600 dark:text-green-400' : 'text-[#667781] dark:text-[#8696A0]'}>
+                    {passwordChecks.hasNumber ? '\u2713' : '\u2022'} One number (0-9)
+                  </li>
+                  <li className={passwordChecks.hasSpecial ? 'text-green-600 dark:text-green-400' : 'text-[#667781] dark:text-[#8696A0]'}>
+                    {passwordChecks.hasSpecial ? '\u2713' : '\u2022'} One special character (@$!%*?&)
+                  </li>
+                </ul>
+              </div>
             </div>
 
             <div>
