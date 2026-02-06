@@ -81,5 +81,15 @@ postgres-data/
 .claude/
 *.local.md
 
+# Vercel
 .vercel
+
+# WhatsApp sessions (all locations)
+.whatsapp-sessions/
 apps/api/.whatsapp-sessions/
+**/.whatsapp-sessions/
+
+# Temp files created during deployment
+temp_*.json
+temp_*.bin
+temp_*.txt
