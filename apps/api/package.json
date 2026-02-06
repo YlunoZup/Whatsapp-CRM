@@ -22,6 +22,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "prisma:reset": "ts-node prisma/reset.ts",
     "prisma:studio": "prisma studio",
     "clean": "rimraf dist"
   },
